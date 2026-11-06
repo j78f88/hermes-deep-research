@@ -239,7 +239,7 @@ class DeepestResearch(FastResearch):
             # The second round stopped. The first answer was checked and reviewed, so point at it.
             rec["answer_path"] = str(first)
             rec["review_path"] = str(self.path("round1", "review.json"))
-            rec["readiness"] = f"{rec['review_round'].get('first_readiness') or 'Partial answer. Do not rely on it alone.'} This is the first-round answer, because the second round stopped."
+            rec["readiness"] = f"{rec['review_round'].get('first_readiness') or self.NOT_REVIEWED} This is the first-round answer, because the second round stopped."
         self.write_json("run.json", rec)
         return rec
 

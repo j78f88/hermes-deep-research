@@ -1135,10 +1135,23 @@ class FastResearch:
             return review
         return {}
 
+    NOT_REVIEWED = "Not reviewed. Check the sources before relying on it."
+    ANSWERED = "Answers the question. Notes are at the end."
+    PART_ANSWERED = "Answers part of the question. Still missing:"
+
+    def _missing_parts(self) -> list[str]:
+        """Every non-empty missing part from a usable review, whitespace collapsed."""
+        missing = self._usable_review().get("missing_parts")
+        return [" ".join(item.split()) for item in (missing if isinstance(missing, list) else [])
+                if isinstance(item, str) and item.strip()]
+
     def readiness(self):
-        return {"accept": "Ready to use.",
-                "accept_with_notes": "Usable with care. Read the notes at the end."}.get(
-                    self._usable_review().get("verdict"), "Partial answer. Do not rely on it alone.")
+        # The reviewer's verdict does not set this line. It rejected good answers too, so a
+        # verdict-based line misled. The line says only whether a usable review ran and
+        # whether it named missing parts. The verdict stays in review.json and run.json.
+        if not self._usable_review():
+            return self.NOT_REVIEWED
+        return self.PART_ANSWERED if self._missing_parts() else self.ANSWERED
 
     def finish(self) -> dict:
         grades = self._read_json("grades.json") or {}
@@ -1159,15 +1172,8 @@ class FastResearch:
         text = re.sub(r"\n[^\n]*\n<!-- research-readiness -->.*?<!-- /research-readiness -->\n*", "\n", text, flags=re.S)
         title, body = text.split("\n", 1)
         body, sources = body.split("\n## Sources", 1)
-        missing = self._usable_review().get("missing_parts")
-        bullets = []
-        for item in missing if isinstance(missing, list) else []:
-            if isinstance(item, str) and item.strip():
-                # Review references are text, not extra answer citations.
-                missing_text = " ".join(item.split())
-                bullets.append("- " + missing_text.replace("[", r"\[").replace("]", r"\]"))
-            if len(bullets) == 2:
-                break
+        # Every missing part is listed. Review references are text, not extra answer citations.
+        bullets = ["- " + item.replace("[", r"\[").replace("]", r"\]") for item in self._missing_parts()]
         lead = self.readiness() + "\n<!-- research-readiness -->\n" + "\n".join(bullets) + "\n<!-- /research-readiness -->\n\n"
         checks = "<!-- research-check -->\n## Checks\n\n" + header + "Evidence: [evidence.md](evidence.md). Review notes: [review.json](review.json).\n\n<!-- /research-check -->\n"
         self.path("answer.md").write_text(title + "\n\n" + lead + body.strip() + "\n\n" + checks + "\n## Sources" + sources, encoding="utf-8")

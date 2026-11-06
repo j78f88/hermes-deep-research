@@ -38,5 +38,5 @@ Run it in the background and wait on it. Run the same command again to resume or
 
 - Load `deep-research-fast` and work through its verification checklist.
 - Read `review.json` before relying on the answer. A rejecting review does not stop the run.
-- Lead with the readiness line and say what is still missing.
+- Lead with the readiness line and say what is still missing. The line comes from the review's missing parts, not its verdict.
 - Metered search and fetch charges are not in the run's cost record.

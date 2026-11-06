@@ -114,7 +114,9 @@ def test_reject_review_is_recorded_and_finish_is_idempotent(tmp_path):
     assert rec["grade_counts"] and rec["sentence_check_counts"]
     text = fr.path("answer.md").read_text()
     assert text.index("Finding") < text.index("## Checks") < text.index("Sentence check:") < text.index("## Sources")
-    assert text.splitlines()[2] == "Partial answer. Do not rely on it alone."
+    # A rejecting review no longer sets the opening line. Its missing part does.
+    assert text.splitlines()[2] == "Answers part of the question. Still missing:"
+    assert "- two" in text.split("## Checks", 1)[0]
     assert "questioned citations 1 (1)" in text
     assert "Fact grades (NATO Admiralty Code):" in text
     fr.run()

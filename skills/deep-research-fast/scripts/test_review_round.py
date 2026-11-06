@@ -59,7 +59,7 @@ def test_reject_runs_one_review_round_and_archives_first_answer(tmp_path):
     rr = rec["review_round"]
     assert rr["ran"] is True and rr["skipped"] is None
     assert rr["questions"] == REVIEW_QUESTIONS
-    assert rr["first_readiness"] == "Partial answer. Do not rely on it alone."
+    assert rr["first_readiness"] == "Answers part of the question. Still missing:"
     assert rr["first_review_issue_counts"] == {key: len(value) for key, value in ISSUES.items()}
     assert len(rr["branches"]) == 2
     for row in rr["branches"]:
@@ -77,7 +77,7 @@ def test_reject_runs_one_review_round_and_archives_first_answer(tmp_path):
     assert "Round 1 finding" not in fr.path("answer.pre-check.md").read_text()
     assert all(part in fake.followup_prompts[1] for part in MISSING)
     assert fake.count("sentence_check") >= 2
-    assert rec["quote_check"] == "pass" and rec["readiness"].startswith("Partial answer.")
+    assert rec["quote_check"] == "pass" and rec["readiness"] == "Answers part of the question. Still missing:"
     assert rec["review_verdict"] == "reject"  # The second review is final, not a third wave.
     saved = {name: fr.path("round1", name).read_bytes() for name in ARCHIVED}
     calls = len(fake.sessions)
@@ -112,7 +112,7 @@ def test_accept_with_notes_can_fill_missing_parts(tmp_path):
     rec = controller(tmp_path, fake).run()
     assert rec["status"] == "completed", rec["error"]
     assert rec["review_round"]["ran"] is True
-    assert rec["review_round"]["first_readiness"] == "Usable with care. Read the notes at the end."
+    assert rec["review_round"]["first_readiness"] == "Answers part of the question. Still missing:"
 
 
 def test_drops_earlier_followups_before_applying_question_cap(tmp_path):
@@ -285,7 +285,7 @@ def test_first_wave_retry_reconsiders_skipped_round(tmp_path, monkeypatch, skip)
     rec = controller(tmp_path, fake).run()
     assert rec["status"] == "completed", rec["error"]
     assert rec["review_round"]["ran"] is True
-    assert rec["review_round"]["first_readiness"].startswith("Partial answer.")
+    assert rec["review_round"]["first_readiness"] == "Answers part of the question. Still missing:"
     assert rec["review_round"]["first_review_issue_counts"]["missing_parts"] == 2
     assert fake.count("synthesis") == fake.count("review") == 3
 

@@ -73,15 +73,15 @@ Fast mode has no issue tickets, diagrams, deliverables export, plain brief, refe
 
 Both `ANSWER` and `SYNTHESIS` aim for 1,500 to 2,500 words before the sources. A short question may need less.
 
-After the title, the answer starts with the review's readiness line.
+After the title, the answer starts with a readiness line. The review's verdict does not set it. In trials the reviewer rejected every answer it saw, good ones included, so a verdict-based line misled. The verdict stays in `review.json` and `run.json`.
 
-| Review verdict | Readiness line |
+| Review | Readiness line |
 |---|---|
-| `accept` | Ready to use. |
-| `accept_with_notes` | Usable with care. Read the notes at the end. |
-| `reject` or no usable review | Partial answer. Do not rely on it alone. |
+| No usable review | Not reviewed. Check the sources before relying on it. |
+| Usable review, no missing parts | Answers the question. Notes are at the end. |
+| Usable review with missing parts | Answers part of the question. Still missing: |
 
-Up to two missing parts from the review follow as short bullets. The answer comes next.
+A usable review comes from a different vendor and has a saved verdict. Every missing part from the review follows as a short bullet. The answer comes next.
 The `## Checks` section comes at the end, before the sources. It holds check counts, citation recall before repairs and review issue counts.
 It links `evidence.md` and `review.json` by name. Citation recall and the main sentence counts exclude inferences.
 Citation precision is not measured. Both modes print the readiness line and the `review.json` path in their CLI summary.
@@ -267,7 +267,8 @@ Runs share saved pages, so a follow-up reads pages instead of fetching them agai
 - The writer can still say more than a finding. The final review is asked to check every citation, but it still misses some. Check the combined write-up sentence by sentence.
 - Speed is not depth. Fast runs finish in minutes and still leave gaps. An answer can omit exact configuration or operating commands even when its other citations pass. Seed follow-up questions from "What is still missing", from rejected findings and from the review's missing parts.
 - Sources about a side package can be read as the main project. Keep each finding tied to the product it is about.
-- A rejecting review does not stop either mode. The readiness line warns the reader. Review issue counts stay in `## Checks` and the run record.
+- A rejecting review does not stop either mode. Review issue counts stay in `## Checks` and the run record.
+- Test any judge on known good and bad answers before tuning against it. The reviewer here rejected every answer, so its verdict no longer sets the readiness line.
 - Complete an interrupted `round1/` archive before retrying failed branches. Keep the first answer unchanged.
 - Reconsider a skipped review round when a first-wave retry changes the review. Never reopen an extra wave that already started.
 - Liveness checks on worker processes must tolerate a process that has only just started.
@@ -315,7 +316,7 @@ Fast and deepest modes do not export deliverables or need a source-intelligence 
 - [ ] `sentence_check.json` and `grades.json` show what was narrowed, removed or left unchecked.
 - [ ] `sentence_check_counts` counts inference sentences separately.
 - [ ] `evidence.md` holds citation quotes, saved page paths and removed claims.
-- [ ] The readiness line matches the review verdict. The CLI summary gives the review path.
+- [ ] The readiness line matches the review's missing parts, not its verdict. Every missing part is listed. The CLI summary gives the review path.
 - [ ] Deepest `run.json` records whether the review round ran and keeps the first review's readiness and issue counts.
 - [ ] A deepest review round keeps the first answer in `round1/` and stops after its second review.
 - [ ] Current availability, support and price claims state the source date or say the source is undated.

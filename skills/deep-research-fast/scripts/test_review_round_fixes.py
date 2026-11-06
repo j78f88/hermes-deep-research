@@ -65,8 +65,9 @@ def test_crash_in_round_after_first_wave_failure_keeps_round_one(tmp_path, monke
     # The round had already started. Only the second answer needs the retried branch.
     assert fake.count("synthesis") == 2, report
     assert fake.count("review") == 2, report
-    expected = {"accept_with_notes": "Usable with care. Read the notes at the end."}.get(
-        round1_review["verdict"], "Partial answer. Do not rely on it alone.")
+    # The verdict does not set the line. The round-one review's missing parts do.
+    expected = ("Answers part of the question. Still missing:" if (round1_review.get("review") or {}).get("missing_parts")
+                else "Answers the question. Notes are at the end.")
     assert rr["first_readiness"] == expected, report
 
 

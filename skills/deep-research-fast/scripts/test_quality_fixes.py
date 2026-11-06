@@ -52,22 +52,30 @@ def test_sources_list_each_page_once_and_keep_quotes_and_removed_claims_in_evide
     assert check_answer_files(tmp_path, fr.run_id)["verdict"] == "pass"
 
 
-@pytest.mark.parametrize("verdict,independent,line", [
-    ("accept", True, "Ready to use."),
-    ("accept_with_notes", True, "Usable with care. Read the notes at the end."),
-    ("reject", True, "Partial answer. Do not rely on it alone."),
-    ("accept", False, "Partial answer. Do not rely on it alone."),
-    (None, True, "Partial answer. Do not rely on it alone."),
+PART = "Answers part of the question. Still missing:"
+ANSWERED = "Answers the question. Notes are at the end."
+NOT_REVIEWED = "Not reviewed. Check the sources before relying on it."
+MISSING = ["First missing part.[999]", "Second missing part.", "Third missing part."]
+
+
+# The verdict never sets the opening line. Only a usable review and its missing parts do.
+@pytest.mark.parametrize("verdict,independent,missing,line", [
+    ("accept", True, MISSING, PART),
+    ("reject", True, MISSING, PART),
+    ("accept_with_notes", True, [], ANSWERED),
+    ("reject", True, [], ANSWERED),
+    ("reject", True, ["", "   "], ANSWERED),
+    ("accept", False, MISSING, NOT_REVIEWED),
+    (None, True, MISSING, NOT_REVIEWED),
 ])
 def test_readiness_leads_answer_and_cli_exposes_readiness_and_review_path(
-        tmp_path, monkeypatch, capsys, verdict, independent, line):
+        tmp_path, monkeypatch, capsys, verdict, independent, missing, line):
     import fast_research
     import deepest_research
     fake = FakeHermes(SEARCH)
     fr = prepared_fast(tmp_path, fake)
     fr.answer()
     fr.check()
-    missing = ["First missing part.[999]", "Second missing part.", "Third missing part."]
     if verdict:
         fr.write_json("review.json", {"verdict": verdict, "different_vendor": independent,
                                      "review": {"verdict": verdict, "missing_parts": missing}})
@@ -76,9 +84,12 @@ def test_readiness_leads_answer_and_cli_exposes_readiness_and_review_path(
     assert text.splitlines()[2] == line
     pre_checks = text.split("## Checks", 1)[0]
     assert "Sentence check:" not in pre_checks and "Citation recall:" not in pre_checks
-    if verdict and independent:
+    if line == PART:
+        # Every missing part is listed, not just the first two.
         assert r"- First missing part.\[999\]" in pre_checks and "- Second missing part." in pre_checks
-        assert "Third missing part." not in pre_checks
+        assert "- Third missing part." in pre_checks
+    else:
+        assert "missing part." not in pre_checks
     assert text.index("## Checks") < text.index("## Sources")
     assert check_answer_files(tmp_path, fr.run_id)["verdict"] == "pass"
     fr.finish()
@@ -327,7 +338,7 @@ def test_date_narrowing_never_adds_a_date_missing_from_the_quote():
 
 @pytest.mark.parametrize("verdict", [["accept"], {"overall": "accept"}])
 @pytest.mark.parametrize("deepest", [False, True], ids=["fast", "deepest"])
-def test_unhashable_review_verdict_completes_with_partial_readiness(tmp_path, verdict, deepest):
+def test_unhashable_review_verdict_completes_as_not_reviewed(tmp_path, verdict, deepest):
     fake = FakeHermes(SEARCH)
     original = fake.oneshot
 
@@ -344,7 +355,7 @@ def test_unhashable_review_verdict_completes_with_partial_readiness(tmp_path, ve
     assert rec["status"] == "completed", rec["error"]
     run = fr.store.get_run(fr.run_id)
     assert run is not None and run["status"] == "completed"
-    assert rec["readiness"] == "Partial answer. Do not rely on it alone."
+    assert rec["readiness"] == NOT_REVIEWED
     assert fr.record()["readiness"] == rec["readiness"]
     assert fr.path("answer.md").read_text().splitlines()[2] == rec["readiness"]
     assert "Do not present this as usable." not in fr.path("answer.md").read_text()
