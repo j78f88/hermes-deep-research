@@ -1,0 +1,3 @@
+# Generated Python artifacts are not skill source or sync inputs.
+__pycache__/
+*.py[cod]

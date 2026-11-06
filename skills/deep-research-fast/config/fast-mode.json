@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "catalogue": {
+    "source_url": "https://openrouter.ai/api/v1/models",
+    "captured_at": "2026-11-02T14:00:22Z",
+    "source_sha256": "03175bbb29266855388fe6d10e0c9e680308b490a4c27047afe42c2ba5a0e544",
+    "note": "Ids, canonical slugs and list prices read from the live catalogue on 3 Nov 2026 (Adelaide). Prices are USD per token at capture and are informational only. Cost records come from Hermes session records."
+  },
+  "provider": "openrouter",
+  "models": {
+    "worker": {
+      "id": "anthropic/claude-haiku-5.5",
+      "canonical_slug": "anthropic/claude-haiku-5.5-20261007",
+      "vendor": "anthropic",
+      "prompt_usd_per_token": "0.0000001",
+      "completion_usd_per_token": "0.0000005",
+      "why": "Cheap, fast and tool-capable. Runs the small search, fetch and read jobs."
+    },
+    "checker": {
+      "id": "google/gemini-3.8-flash",
+      "canonical_slug": "google/gemini-3.8-flash-20260902",
+      "vendor": "google",
+      "prompt_usd_per_token": "0.000000825",
+      "completion_usd_per_token": "0.000004125",
+      "why": "Cheap and fast, from a different vendor than the worker that wrote the findings. Runs one meaning check per page.",
+      "captured_at": "2026-11-03T01:40:00Z"
+    },
+    "planner": {
+      "id": "anthropic/claude-opus-5.5",
+      "canonical_slug": "anthropic/claude-opus-5.5-20260921",
+      "vendor": "anthropic",
+      "prompt_usd_per_token": "0.000004",
+      "completion_usd_per_token": "0.00002",
+      "why": "Strong model for the one planning call."
+    },
+    "writer": {
+      "id": "anthropic/claude-opus-5.5",
+      "canonical_slug": "anthropic/claude-opus-5.5-20260921",
+      "vendor": "anthropic",
+      "prompt_usd_per_token": "0.000004",
+      "completion_usd_per_token": "0.00002",
+      "why": "Strong model for the answer, the same one deep-research uses as writer."
+    },
+    "reviewer": {
+      "id": "openai/gpt-6.1-sol",
+      "canonical_slug": "openai/gpt-6.1-sol-20260929",
+      "vendor": "openai",
+      "prompt_usd_per_token": "0.000002",
+      "completion_usd_per_token": "0.00001",
+      "why": "Different vendor from the writer and the workers, for the one review at the end."
+    }
+  },
+  "toolsets": {
+    "worker": "web,terminal,file",
+    "thinker": "file"
+  },
+  "reasoning": {
+    "worker": "low",
+    "checker": "low",
+    "planner": "medium",
+    "writer": "medium",
+    "reviewer": "medium"
+  },
+  "limits": {
+    "host_slots": 24,
+    "concurrency": 8,
+    "min_topics": 4,
+    "max_topics": 6,
+    "queries_per_topic": 2,
+    "max_search_jobs": 10,
+    "max_fetch_jobs": 28,
+    "max_search_fetch_jobs": 38,
+    "picks_per_search": 3,
+    "claims_per_page": 6,
+    "max_attempts": 2,
+    "research_deadline_seconds": 1500
+  },
+  "deepest": {
+    "max_questions": 4,
+    "parallel_branches": 4,
+    "review_round": {
+      "enabled": true,
+      "max_questions": 4
+    },
+    "branch_limits": {
+      "max_search_fetch_jobs": 16,
+      "concurrency": 4,
+      "research_deadline_seconds": 720
+    }
+  },
+  "budgets_seconds": {
+    "preflight": 120,
+    "plan": 420,
+    "search": 300,
+    "fetch": 420,
+    "read": 360,
+    "check": 240,
+    "answer": 900,
+    "review": 600
+  },
+  "grades": {
+    "show_in_answer": false,
+    "note": "Grades are always saved in grades.json. They are hidden from the answer because the 5 Nov 2026 blind check found higher grades were not right more often."
+  }
+}

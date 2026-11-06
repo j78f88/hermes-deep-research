@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hermes.local/schemas/deep-research/qa-assurance-schema.json",
+  "title": "Deep Research QA Assurance Receipt",
+  "type": "object",
+  "required": ["schema_version", "status", "reviewer", "producers"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "deep-research-qa-receipt-v1"
+    },
+    "name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PASS", "HOLD", "FAIL", "N/A"]
+    },
+    "reason": {
+      "type": "string",
+      "description": "Required when status is N/A. Only valid for export-only checks when export export was explicitly suppressed."
+    },
+    "reviewer": {
+      "type": ["string", "null"],
+      "description": "Identity of independent reviewer/subagent. Must differ from producers for independent QA receipts."
+    },
+    "producers": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "controller": {
+      "type": "string"
+    },
+    "external_pack_sha256": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "reviewed_paths": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "output_classes": {
+      "type": "object",
+      "additionalProperties": {"enum": ["PASS", "HOLD", "FAIL", "N/A"]}
+    },
+    "privacy_scan_findings": {
+      "type": "array"
+    },
+    "routing_invariant": {
+      "enum": ["PASS", "HOLD", "FAIL", true, false]
+    },
+    "tags": {
+      "type": "object",
+      "properties": {
+        "allowed": {"type": "array", "items": {"type": "string"}},
+        "invalid": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "internal_links": {
+      "type": "object",
+      "properties": {
+        "status": {"enum": ["PASS", "HOLD", "FAIL", "N/A"]}
+      }
+    },
+    "findings": {
+      "type": "array"
+    },
+    "requested_repairs": {
+      "type": "array"
+    }
+  },
+  "additionalProperties": true
+}

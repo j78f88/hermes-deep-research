@@ -1,0 +1,14 @@
+{
+  "fixture_kind": "synthetic_public_regression",
+  "provider_evidence": false,
+  "publication_approval": false,
+  "status": "PASS",
+  "brief_path": "internal/plain-brief.md",
+  "brief_sha256": "b8117b3d5c60246daa381953c63bbe4326c9f741b98569f54360df726ad53231",
+  "full_pack_path": "internal/reference-pack.md",
+  "full_pack_sha256": "3a8afac795f0c7b315cc33b68f6e9b11cf3a2e859acf6bbaaf391453d68efc39",
+  "editor_minor": [
+    "Retain the source's planned qualifier rather than promising an opening date."
+  ],
+  "editor_blocking": []
+}

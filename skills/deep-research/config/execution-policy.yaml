@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "profiles": {
+    "quality": {
+      "concurrency": 3,
+      "timeout_seconds": 900,
+      "worker_duration_seconds": 1800,
+      "attempts": 3,
+      "retry_classes": [
+        "rate_limit",
+        "transient",
+        "timeout",
+        "empty",
+        "truncated"
+      ],
+      "fallback_classes": [
+        "rate_limit",
+        "transient",
+        "timeout"
+      ],
+      "backoff_seconds": 15,
+      "backoff_multiplier": 2,
+      "max_backoff_seconds": 60,
+      "max_call_tokens": 32000
+    }
+  }
+}

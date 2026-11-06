@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research.local/schemas/prior-work-context-v1.json",
+  "title": "Prior Work Context v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "campaign_id", "query_terms", "surfaces", "matches", "material_gaps", "context_to_use", "context_to_exclude", "status", "generated_at"],
+  "properties": {
+    "schema_version": {"const": "prior-work-context-v1"},
+    "campaign_id": {"type": "string", "minLength": 1},
+    "query_terms": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "surfaces": {
+      "type": "array",
+      "minItems": 2,
+      "allOf": [
+        {"contains": {"type": "object", "required": ["surface", "required", "checked"], "properties": {"surface": {"const": "linear"}, "required": {"const": true}, "checked": {"const": true}}}},
+        {"contains": {"type": "object", "required": ["surface", "required", "checked"], "properties": {"surface": {"const": "knowledge_base"}, "required": {"const": true}, "checked": {"const": true}}}}
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["surface", "required", "checked", "checked_at", "freshness", "status"],
+        "properties": {
+          "surface": {"enum": ["linear", "knowledge_base", "sessions", "source_corpus", "repositories", "runtime", "skills", "feedback_register"]},
+          "required": {"type": "boolean"},
+          "checked": {"type": "boolean"},
+          "checked_at": {"type": ["string", "null"], "format": "date-time"},
+          "freshness": {"enum": ["live", "fresh", "aging", "stale", "not_applicable", "blocked"]},
+          "status": {"enum": ["checked", "none_found", "blocked", "excluded"]},
+          "blocker_or_exclusion": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "matches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["prior_work_id", "surface", "ref", "title", "relationship", "observed_state", "observed_at", "evidence_hash", "reusable_assets", "decision_or_gate"],
+        "properties": {
+          "prior_work_id": {"type": "string", "pattern": "^PW-[0-9]{3,}$"},
+          "surface": {"type": "string"},
+          "ref": {"type": "string", "minLength": 1},
+          "title": {"type": "string", "minLength": 1},
+          "relationship": {"enum": ["reuse_as_is", "extend_existing", "replace_with_reason", "contradicts_prior_decision", "superseded", "duplicate_do_not_build", "failed_attempt_with_lesson", "unresolved_gap", "not_relevant"]},
+          "observed_state": {"type": "string", "minLength": 1},
+          "observed_at": {"type": "string", "format": "date-time"},
+          "evidence_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+          "owner": {"type": ["string", "null"]},
+          "reusable_assets": {"type": "array", "items": {"type": "string"}},
+          "decision_or_gate": {"type": ["string", "null"]},
+          "notes": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "material_gaps": {"type": "array", "items": {"type": "object", "required": ["surface", "impact"], "properties": {"surface": {"type": "string"}, "impact": {"type": "string"}, "route": {"enum": ["HOLD", "proceed_with_caveat"]}}}},
+    "context_to_use": {"type": "array", "items": {"type": "string"}},
+    "context_to_exclude": {"type": "array", "items": {"type": "string"}},
+    "status": {"enum": ["PASS", "HOLD", "FAIL"]},
+    "generated_at": {"type": "string", "format": "date-time"}
+  }
+}

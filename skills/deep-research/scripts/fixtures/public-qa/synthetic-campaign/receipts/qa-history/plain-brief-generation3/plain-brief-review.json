@@ -1,0 +1,14 @@
+{
+  "fixture_kind": "synthetic_public_regression",
+  "provider_evidence": false,
+  "publication_approval": false,
+  "status": "PASS",
+  "brief_path": "internal/plain-brief.md",
+  "brief_sha256": "797b287aa1b705cdc09d4999ada5c99bc3b45a6e2343587ed8ab032dbf996fcc",
+  "full_pack_path": "internal/reference-pack.md",
+  "full_pack_sha256": "3a8afac795f0c7b315cc33b68f6e9b11cf3a2e859acf6bbaaf391453d68efc39",
+  "editor_minor": [
+    "Keep download counts distinct from paying customer counts."
+  ],
+  "editor_blocking": []
+}

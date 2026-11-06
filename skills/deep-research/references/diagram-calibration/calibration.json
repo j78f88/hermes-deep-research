@@ -1,0 +1,37 @@
+{
+  "schema_version": "diagram-calibration-v1",
+  "note": "Sanitised derivatives of structural calibration examples. Private labels and identity bands have been replaced. Historical human and rubric verdicts describe the original geometry, not fresh review of these modified bytes. Re-review these derivatives before using them to approve publication.",
+  "examples": [
+    {
+      "file": "overloaded-layout.png",
+      "sha256": "cc7dcd2023f194ce8b3bd79dc05f8482ce6f1af3d2335850af0f84b40d47a53e",
+      "human_verdict": "fail",
+      "final": true,
+      "why": "14 boxes for one point; five boxes for things not installed; dashed lines merging into the gateway; separate key box plus legend; large empty areas inside the boundary",
+      "historical_structural_anchor": true,
+      "fresh_publication_approval": false,
+      "historical_rubric_verdict": "reject (R1 R3 R5 R7 R10)"
+    },
+    {
+      "file": "compositions.png",
+      "sha256": "48e06e23a08092053b3c808abc77bc889c63f35750a108a4e9a008ea4c4405d4",
+      "human_verdict": "pass",
+      "final": true,
+      "why": "one connector per side, no merges, short labels, identity band clear",
+      "resolution": "known disagreement: rubric stricter than the owner. Published by recorded owner override, not by loosening the rule.",
+      "historical_structural_anchor": true,
+      "fresh_publication_approval": false,
+      "historical_rubric_verdict": "reject (R3: host box stretched, empty lower-right) under both R3 wordings"
+    },
+    {
+      "file": "compact-layout.png",
+      "sha256": "c5fa06aaa110c2650c310863a725d57e4c527d3d9d50013fd9bb078093630521",
+      "human_verdict": "pass",
+      "final": true,
+      "why": "7 boxes; gated items grouped; conditions written on dashed lines; one connector per gateway side",
+      "historical_structural_anchor": true,
+      "fresh_publication_approval": false,
+      "historical_rubric_verdict": "approve (full, top, bottom)"
+    }
+  ]
+}

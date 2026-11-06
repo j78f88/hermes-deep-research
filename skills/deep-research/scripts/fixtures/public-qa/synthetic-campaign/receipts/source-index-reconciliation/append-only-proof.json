@@ -1,0 +1,8 @@
+{
+  "fixture_kind": "synthetic_public_regression",
+  "provider_evidence": false,
+  "publication_approval": false,
+  "original_prefix_bytes": 289,
+  "original_index_sha256": "6860ca57a190d2c5512906583136876e6b7e5816dc4671320193062c47e3e14c",
+  "current_index_sha256": "e36c0aca6b73485b0c6af8a43d3fd94e08669d5e7887f9bd56b7ecab4a78515e"
+}

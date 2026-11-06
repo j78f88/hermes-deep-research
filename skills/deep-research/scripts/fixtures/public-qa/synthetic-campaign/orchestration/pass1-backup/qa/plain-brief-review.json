@@ -1,0 +1,15 @@
+{
+  "fixture_kind": "synthetic_public_regression",
+  "provider_evidence": false,
+  "publication_approval": false,
+  "status": "PASS",
+  "brief_path": "internal/plain-brief.md",
+  "brief_sha256": "15598100f3f7738d8815450ed67466a7835e6dc384361a2d9e573fd1b369eeaa",
+  "full_pack_path": "internal/reference-pack.md",
+  "full_pack_sha256": "3a8afac795f0c7b315cc33b68f6e9b11cf3a2e859acf6bbaaf391453d68efc39",
+  "editor_minor": [
+    "MC-2 belongs to Example Laboratory; the synthetic reviewer proposes assigning it to another operator.",
+    "Split the funding and access summaries into separate paragraphs."
+  ],
+  "editor_blocking": []
+}

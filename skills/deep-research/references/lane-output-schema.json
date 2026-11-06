@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DeepResearchLaneOutput",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "campaign",
+    "lane",
+    "status",
+    "summary",
+    "sources",
+    "findings",
+    "gaps",
+    "contradictions",
+    "action_register_candidates",
+    "verification",
+    "acquisition"
+  ],
+  "properties": {
+    "schema_version": {"const": "deep-research-lane-output-v1"},
+    "campaign": {
+      "type": "object",
+      "required": ["target", "target_type", "decision_question"],
+      "properties": {
+        "target": {"type": "string"},
+        "target_type": {"type": "string"},
+        "decision_question": {"type": "string"},
+        "parent_issue": {"type": ["string", "null"]},
+        "campaign_root": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "lane": {
+      "type": "object",
+      "required": ["id", "name", "type", "objective"],
+      "properties": {
+        "id": {"type": "string"},
+        "name": {"type": "string"},
+        "type": {"type": "string"},
+        "objective": {"type": "string"},
+        "artifact_path": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "status": {"enum": ["pass", "hold", "fail", "blocked", "not_applicable"]},
+    "summary": {"type": "string"},
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "url_or_ref", "source_class", "accessed_or_checked"],
+        "properties": {
+          "id": {"type": "string"},
+          "title": {"type": "string"},
+          "url_or_ref": {"type": "string"},
+          "source_class": {"enum": ["primary", "official", "repo", "internal", "independent", "vendor", "community", "secondary", "unknown"]},
+          "accessed_or_checked": {"type": "string"},
+          "notes": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "claim", "evidence_class", "confidence", "source_ids"],
+        "properties": {
+          "id": {"type": "string"},
+          "claim": {"type": "string"},
+          "evidence_class": {"enum": ["measured", "reported", "proxy", "community_signal", "analyst_inference", "unknown", "unverified"]},
+          "confidence": {"enum": ["high", "medium", "low", "unknown"]},
+          "source_ids": {"type": "array", "items": {"type": "string"}},
+          "caveat": {"type": "string"},
+          "implication": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["gap", "importance", "next_attempt_or_gate"],
+        "properties": {
+          "gap": {"type": "string"},
+          "importance": {"enum": ["high", "medium", "low"]},
+          "next_attempt_or_gate": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "contradictions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["topic", "side_a", "side_b", "resolution"],
+        "properties": {
+          "topic": {"type": "string"},
+          "side_a": {"type": "string"},
+          "side_b": {"type": "string"},
+          "resolution": {"type": "string"},
+          "confidence": {"enum": ["high", "medium", "low", "unresolved"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "action_register_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "idea_or_action", "state", "next_move", "owner_or_gate", "proof_or_trigger"],
+        "properties": {
+          "id": {"type": "string"},
+          "idea_or_action": {"type": "string"},
+          "state": {
+            "enum": [
+              "reject-direct-adoption",
+              "watch-with-trigger",
+              "candidate-registered",
+              "accepted-capability / already-aligned",
+              "accepted-capability / propagate",
+              "blocked-legal-or-governance-review",
+              "blocked-owner-decision",
+              "consumed"
+            ]
+          },
+          "next_move": {"type": "string"},
+          "owner_or_gate": {"type": "string"},
+          "proof_or_trigger": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "visual_implications": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["candidate_exhibit", "evidence_refs", "decision_use"],
+        "properties": {
+          "candidate_exhibit": {"type": "string"},
+          "type": {"enum": ["diagram", "map", "matrix", "scorecard", "table", "heatmap", "portfolio", "timeline", "other"]},
+          "evidence_refs": {"type": "array", "items": {"type": "string"}},
+          "decision_use": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["checks_run", "forbidden_actions_absent", "open_verification_gaps"],
+      "properties": {
+        "checks_run": {"type": "array", "items": {"type": "string"}},
+        "forbidden_actions_absent": {"type": "array", "items": {"type": "string"}},
+        "open_verification_gaps": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "acquisition": {
+      "type": "object",
+      "required": ["source_type", "method", "provenance", "coverage", "degraded_state"],
+      "properties": {
+        "source_type": {"enum": ["web_page", "article", "post", "newsletter", "youtube_video", "youtube_channel", "playlist", "podcast", "talk", "pdf", "document", "repo", "internal", "mixed_corpus", "other", "not_applicable"]},
+        "method": {"type": "string"},
+        "provenance": {"enum": ["live", "archived_snapshot", "metadata_only", "manual", "internal_readback", "not_applicable", "unknown"]},
+        "coverage": {"enum": ["full_text_captured", "partial_text_captured", "metadata_only", "transcript_full", "transcript_partial", "transcript_unavailable", "ocr_required", "not_applicable", "unknown"]},
+        "degraded_state": {"type": "array", "items": {"enum": ["none", "metadata_only", "archived_snapshot", "transcript_unavailable", "blocked_by_platform", "ocr_required", "manual_review_required", "partial_capture", "unknown"]}},
+        "raw_retention": {"type": "string"},
+        "timestamp_or_line_refs_available": {"type": ["boolean", "null"]}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
