@@ -54,17 +54,15 @@ class CompletionResult:
 
 def _api_key():
     """Use the existing reference, once only; auth failures never invoke this again."""
-    value = os.environ.get('OPENROUTER_API_KEY')
-    if value:
-        return value
     try:
-        for line in (Path.home() / '.hermes/.env').read_text().splitlines():
-            if line.startswith('OPENROUTER_API_KEY='):
-                value = line.split('=', 1)[1].strip().strip('\"').strip("'")
-                if value:
-                    return value
-    except OSError:
-        pass
+        from agent.secret_scope import get_secret
+        value = get_secret('OPENROUTER_API_KEY')
+    except ImportError:
+        value = None
+    if not value:
+        value = os.environ.get('OPENROUTER_API_KEY')
+    if value and value.strip():
+        return value.strip()
     raise RuntimeError('existing OpenRouter secret reference is unavailable')
 
 

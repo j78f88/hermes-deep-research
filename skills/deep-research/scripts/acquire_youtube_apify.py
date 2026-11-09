@@ -2,8 +2,8 @@
 """Acquire a YouTube transcript through Apify for deep-research campaigns.
 
 This script performs a paid Apify actor call only when APIFY_TOKEN is available
-(or loaded from an explicitly supplied .env). It writes corpus artifacts under
-an output directory and never mutates Linear, Knowledge base, or runtime systems.
+through Hermes secret_scope (with os.environ fallback). It writes corpus artifacts
+under an output directory and never mutates Linear, Knowledge base, or runtime systems.
 """
 from __future__ import annotations
 
@@ -25,21 +25,21 @@ DEFAULT_ACTOR = "scraperhive/youtube-transcript-scraper"
 SYNC_PATH = "https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
 
 
+def _apify_token() -> str | None:
+    try:
+        from agent.secret_scope import get_secret
+        value = get_secret("APIFY_TOKEN")
+    except ImportError:
+        value = None
+    if not value:
+        value = os.environ.get("APIFY_TOKEN")
+    return value.strip() if value and value.strip() else None
+
+
 def load_dotenv(path: str | None) -> None:
-    if not path:
-        return
-    p = Path(path).expanduser()
-    if not p.exists():
-        return
-    for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
+    """No-op kept for CLI flag compatibility; credentials resolve via secret_scope or os.environ."""
+    _ = path
+    return None
 
 
 def video_id_from(value: str) -> str:
@@ -121,7 +121,7 @@ def main() -> int:
     parser.add_argument("url_or_id")
     parser.add_argument("--out", required=True, help="Output directory for acquisition artifacts")
     parser.add_argument("--env-file", default=os.environ.get("APIFY_ENV_FILE"),
-                        help="Optional .env file holding APIFY_TOKEN. Defaults to $APIFY_ENV_FILE.")
+                        help="Deprecated compatibility flag (ignored; APIFY_TOKEN resolves via secret_scope).")
     parser.add_argument("--actor", default=None)
     parser.add_argument("--timeout", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true", help="Write request metadata only; do not call Apify")
@@ -140,6 +140,7 @@ def main() -> int:
         "outputFormat": "text",
         "preserveFormatting": False,
     }
+    token = _apify_token()
     acquisition = {
         "schema_version": "deep-research-youtube-apify-acquisition-v1",
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -149,7 +150,7 @@ def main() -> int:
         "provider": "apify",
         "request_payload": payload,
         "env_file_checked": args.env_file,
-        "token_present": bool(os.environ.get("APIFY_TOKEN")),
+        "token_present": bool(token),
         "status": "dry_run" if args.dry_run else "started",
         "coverage": "transcript_unavailable",
         "provenance": "live",
@@ -165,7 +166,6 @@ def main() -> int:
         print(json.dumps({"ok": True, "dry_run": True, "out": str(out), "token_present": acquisition["token_present"]}, indent=2))
         return 0
 
-    token = os.environ.get("APIFY_TOKEN")
     if not token:
         acquisition["status"] = "degraded"
         acquisition["degraded_state"] = ["apify_token_missing", "transcript_unavailable"]

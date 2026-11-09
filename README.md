@@ -17,19 +17,26 @@ All modes retain source text, file hashes and verbatim quotes. A quote matching 
 - Configured model access. Full-mode writing and provider verification use OpenRouter.
 - Optional integrations for issue tracking, diagrams and guarded acquisition. Local deliverables export uses the bundled exporter.
 
-The local checks use Python's standard library. Install the test dependencies with:
+The local configuration and schema checks require `PyYAML>=6,<7` and `jsonschema>=4,<5` (declared in `pyproject.toml`). Install runtime and test dependencies with:
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python3 -m pip install -r requirements-dev.txt
+python3 -m pip install -e ".[dev]"
 ```
 
-## Install the skills
+## Install as a Hermes plugin
 
-Copy the directories under `skills/` into your Hermes profile's skills directory. Check your installation's skill-discovery rules before choosing a destination. `deepest-research` is a pointer skill. Its code lives in `deep-research-fast`, so install both together.
+Install or enable this repository as a native Hermes plugin (`plugin.yaml` and `__init__.py`). On load, `register(ctx)` registers:
 
-Read each `SKILL.md` before running a campaign. Optional companion skills and private service adapters are not bundled. Missing services must be recorded as unavailable, not treated as successful checks.
+- **Skills:** `deep-research`, `deep-research-fast`, and `deepest-research`
+- **Tools:**
+  - `deep_research_preflight` — inspect role models, check credential availability, and estimate token/cost bounds before starting a fast, deepest, or full campaign run
+  - `deep_research_init_campaign` — scaffold a local deep-research campaign directory (defaults under `plugin_data_dir("hermes-deep-research")`)
+  - `deep_research_check_completion` — run the deterministic completion and quote-integrity check on a campaign root
+- **Slash command:** `/deep-research [preflight|init|check]`
+
+**Disclosure:** Paid model calls and online receipt verification connect to OpenRouter (`https://openrouter.ai/api/v1/...`) using `OPENROUTER_API_KEY`. Optional YouTube transcript acquisition (`acquire_youtube_apify.py`) connects to Apify (`https://api.apify.com/v2/...`) using `APIFY_TOKEN`. Both credentials are declared under `requires_env` in `plugin.yaml` and resolved via `agent.secret_scope.get_secret` (with `os.environ` fallback; `.env` files are never opened directly).
 
 ## Configure local paths
 
@@ -39,7 +46,7 @@ The scripts resolve the following environment variables. They expand `~` in thei
 |---|---|---|
 | `DELIVERABLES_EXPORT_PATH` | `~/research-deliverables` | Optional reviewed Markdown deliverables export |
 | `RESEARCH_ARCHIVE_ROOT` | `~/.hermes/research-archive` | Default campaign storage |
-| `SOURCE_INTELLIGENCE_ROOT` | `~/source-intelligence` | Optional acquisition integration |
+| `SOURCE_INTELLIGENCE_ROOT` | (optional, unset) | Optional local source corpus directory |
 
 Full mode exports only the reviewed plain brief and reference pack directly into the flat export root. Use `--export-root` to declare another destination or `--no-deliverable-export` to suppress export. No import subdirectory, tag registry or navigation page is required. See the [deliverables export policy](skills/deep-research/references/deliverable-export-policy.md).
 

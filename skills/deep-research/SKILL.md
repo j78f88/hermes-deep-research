@@ -192,12 +192,12 @@ Resolve these environment variables before starting a campaign. Defaults are loc
 |---|---|---|
 | `DELIVERABLES_EXPORT_PATH` | `~/research-deliverables` | Flat directory for approved Markdown deliverables |
 | `RESEARCH_ARCHIVE_ROOT` | `~/.hermes/research-archive` | Durable campaign archive |
-| `SOURCE_INTELLIGENCE_ROOT` | `~/source-intelligence` | Optional source-intelligence checkout or corpus |
+| `SOURCE_INTELLIGENCE_ROOT` | (optional, unset) | Optional local source corpus directory |
 
 ```bash
 export DELIVERABLES_EXPORT_PATH="${DELIVERABLES_EXPORT_PATH:-$HOME/research-deliverables}"
 export RESEARCH_ARCHIVE_ROOT="${RESEARCH_ARCHIVE_ROOT:-$HOME/.hermes/research-archive}"
-export SOURCE_INTELLIGENCE_ROOT="${SOURCE_INTELLIGENCE_ROOT:-$HOME/source-intelligence}"
+# Optional: set SOURCE_INTELLIGENCE_ROOT to a local corpus directory if you maintain one
 ```
 
 Expand `~` when resolving configured paths in Python; `Path("DELIVERABLES_EXPORT_PATH")` is a literal directory, not configuration. Use an absolute campaign root, for example a run directory under `~/.hermes/work/`, and pass the resolved export root with `--export-root` to the scaffold. Archive completed campaigns under `${RESEARCH_ARCHIVE_ROOT}/runs/YYYY-MM/<run-id>/`. Keep all credentials out of manifests and documentation examples.
@@ -206,15 +206,9 @@ Run `scripts/...` commands from the installed `deep-research` skill directory. W
 
 ## Guarded Apify acquisition
 
-Use `scripts/acquire_youtube_apify.py` for the bundled YouTube acquisition path. For other bounded public acquisition, use a separately installed source-intelligence integration only after checking its documented CLI and authorisation contract. This release does not supply that external service or its entrypoint.
+Use `scripts/acquire_youtube_apify.py` for the bundled YouTube acquisition path. If `SOURCE_INTELLIGENCE_ROOT` is set to an optional local corpus path, you may store or read local corpus artifacts under that directory; no external checkout is required.
 
-Resolve its location with `SOURCE_INTELLIGENCE_ROOT` (default `~/source-intelligence`):
-
-```bash
-cd "${SOURCE_INTELLIGENCE_ROOT:-$HOME/source-intelligence}"
-```
-
-A compatible guarded integration must default to dry-run without reading credentials or contacting Apify. Its request contains only public sources, an approved archive destination, Actor input, per-run spending cap, item and timeout bounds, and a run identifier. Live execution requires a separate explicit authorisation packet and shared usage/spend controls. Never embed a token in the request or pass one in a command. Do not invent a module path when the integration is unavailable; use the bundled path where applicable or report the missing capability.
+A compatible guarded acquisition step must default to dry-run without reading credentials or contacting Apify. Its request contains only public sources, an approved archive destination, Actor input, per-run spending cap, item and timeout bounds, and a run identifier. Live execution requires a separate explicit authorisation packet and shared usage/spend controls. Never embed a token in the request or pass one in a command. Do not invent a module path when an optional integration is unavailable; use the bundled path where applicable or report the missing capability.
 
 ## Context Brief release
 

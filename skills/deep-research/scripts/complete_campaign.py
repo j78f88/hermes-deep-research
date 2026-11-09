@@ -146,6 +146,8 @@ def _load(name: str):
     path = SCRIPT_DIR / f"{name}.py"
     _remember_dependency(str(path))
     with _collect_dependencies():
+        if __package__:
+            return importlib.import_module(f".{name}", __package__)
         spec = importlib.util.spec_from_file_location(name, path)
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
@@ -177,12 +179,12 @@ def step(name: str, verdict: str, klass: str, reasons: list[str], **detail) -> d
 
 def _verifier_subprocess(root: str) -> None:
     """Run the unchanged verifier CLI and return its output plus observed dependencies."""
-    sys.path.insert(0, str(SCRIPT_DIR))
-    sys.argv = [str(SCRIPT_DIR / "verify_campaign_depth.py"), "--campaign-root", root,
+    campaign_root = str(Path(root).resolve())
+    sys.argv = [str(SCRIPT_DIR / "verify_campaign_depth.py"), "--campaign-root", campaign_root,
                 "--mode", "true_deep_research", "--json"]
     output = io.StringIO()
     code = 0
-    with _collect_dependencies(), contextlib.redirect_stdout(output):
+    with contextlib.chdir(SCRIPT_DIR), _collect_dependencies(), contextlib.redirect_stdout(output):
         try:
             runpy.run_path(sys.argv[0], run_name="__main__")
         except SystemExit as exc:
@@ -195,8 +197,8 @@ def _verifier_subprocess(root: str) -> None:
 def check_verifier(root: Path) -> dict:
     launcher = ("import runpy, sys; ns = runpy.run_path(sys.argv[1]); "
                 "ns['_verifier_subprocess'](sys.argv[2])")
-    proc = subprocess.run([sys.executable, "-B", "-E", "-s", "-c", launcher, str(SCRIPT_DIR / "complete_campaign.py"), str(root)],
-                          capture_output=True, text=True, env=clean_env(), timeout=600)
+    proc = subprocess.run([sys.executable, "-B", "-E", "-s", "-c", launcher, str(SCRIPT_DIR / "complete_campaign.py"), str(Path(root).resolve())],
+                          cwd=str(SCRIPT_DIR), capture_output=True, text=True, env=clean_env(), timeout=600)
     try:
         envelope = json.loads(proc.stdout)
         dependencies = envelope["dependencies"]

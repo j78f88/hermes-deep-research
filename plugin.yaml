@@ -1,0 +1,30 @@
+name: hermes-deep-research
+version: "2.0.0"
+manifest_version: 2
+api_version: 1
+license: MIT
+homepage: https://github.com/j78f88/hermes-deep-research
+requires_hermes: ">=0.21.5"
+description: "Multi-lane, fast, and deepest research plugin with saved sources, verbatim quote checks, independent model review, preflight cost estimation, and completion verification."
+tags:
+  - research
+  - citations
+  - verification
+  - deep-research
+provides_tools:
+  - deep_research_preflight
+  - deep_research_init_campaign
+  - deep_research_check_completion
+provides_hooks: []
+requires_env:
+  - name: OPENROUTER_API_KEY
+    description: "OpenRouter API key for multi-vendor research writing, independent review, and online generation verification"
+    url: "https://openrouter.ai/keys"
+    secret: true
+  - name: APIFY_TOKEN
+    description: "Optional Apify API token for guarded YouTube transcript acquisition"
+    url: "https://console.apify.com/settings/integrations"
+    secret: true
+python_dependencies:
+  - "PyYAML>=6,<7"
+  - "jsonschema>=4,<5"
