@@ -2,15 +2,16 @@ name: hermes-deep-research
 version: "2.0.0"
 manifest_version: 2
 api_version: 1
+description: "Multi-lane, fast, and deepest research plugin with saved sources, verbatim quote checks, independent model review, preflight cost estimation, and completion verification."
+author: "Research contributors"
 license: MIT
 homepage: https://github.com/j78f88/hermes-deep-research
-requires_hermes: ">=0.21.5"
-description: "Multi-lane, fast, and deepest research plugin with saved sources, verbatim quote checks, independent model review, preflight cost estimation, and completion verification."
 tags:
   - research
   - citations
   - verification
   - deep-research
+requires_hermes: ">=0.22.6"
 provides_tools:
   - deep_research_preflight
   - deep_research_init_campaign
@@ -21,10 +22,29 @@ requires_env:
     description: "OpenRouter API key for multi-vendor research writing, independent review, and online generation verification"
     url: "https://openrouter.ai/keys"
     secret: true
+optional_env:
   - name: APIFY_TOKEN
-    description: "Optional Apify API token for guarded YouTube transcript acquisition"
+    description: "Apify API token for guarded YouTube transcript acquisition; without it that step records a degraded state"
     url: "https://console.apify.com/settings/integrations"
     secret: true
 python_dependencies:
   - "PyYAML>=6,<7"
   - "jsonschema>=4,<5"
+# Disclosure metadata for reviewers; not a sandbox or permission grant.
+disclosures:
+  storage: >-
+    Registered tools write only under plugin_data_dir("hermes-deep-research")/campaigns.
+    Relative and absolute campaign_root values must resolve inside that folder, symlinks
+    included. Bundled skills, model-routing data and scripts are read-only.
+  subprocesses: >-
+    deep_research_check_completion runs the bundled verifier in a Python child process and
+    may run git against the campaign folder. The other tools start no child process.
+  network: >-
+    deep_research_preflight and deep_research_init_campaign make no network calls.
+    deep_research_check_completion is offline by default; offline=false or probe=true
+    contacts OpenRouter. The bundled research scripts call OpenRouter and, for YouTube
+    transcripts, Apify. These scripts are not registered as tools.
+  credentials: >-
+    OPENROUTER_API_KEY and APIFY_TOKEN resolve through agent.secret_scope.get_secret.
+    The process environment is read only when Hermes is not importable. No .env file is
+    opened, and preflight reports presence only, never values.

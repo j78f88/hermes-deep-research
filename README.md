@@ -36,7 +36,9 @@ Install or enable this repository as a native Hermes plugin (`plugin.yaml` and `
   - `deep_research_check_completion` — run the deterministic completion and quote-integrity check on a campaign root
 - **Slash command:** `/deep-research [preflight|init|check]`
 
-**Disclosure:** Paid model calls and online receipt verification connect to OpenRouter (`https://openrouter.ai/api/v1/...`) using `OPENROUTER_API_KEY`. Optional YouTube transcript acquisition (`acquire_youtube_apify.py`) connects to Apify (`https://api.apify.com/v2/...`) using `APIFY_TOKEN`. Both credentials are declared under `requires_env` in `plugin.yaml` and resolved via `agent.secret_scope.get_secret` (with `os.environ` fallback; `.env` files are never opened directly).
+**Disclosure:** Paid model calls and online receipt verification connect to OpenRouter (`https://openrouter.ai/api/v1/...`) using `OPENROUTER_API_KEY`. Optional YouTube transcript acquisition (`acquire_youtube_apify.py`) connects to Apify (`https://api.apify.com/v2/...`) using `APIFY_TOKEN`. `OPENROUTER_API_KEY` is declared under `requires_env` and `APIFY_TOKEN` under `optional_env` in `plugin.yaml`. Both resolve through `agent.secret_scope.get_secret`. `os.environ` is read only when Hermes is not importable, so one profile never sees another profile's key. `.env` files are never opened directly.
+
+**Storage:** the tools write only under `plugin_data_dir("hermes-deep-research")/campaigns`. A `campaign_root` argument must resolve inside that folder (symlinks included), and the folder itself is refused. Campaigns made elsewhere with the bundled scripts can still be checked with the scripts directly.
 
 ## Configure local paths
 

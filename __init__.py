@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import contextlib
 import datetime
+import functools
 import importlib.util
 import io
 import json
 import os
 import re
-import sys
 from pathlib import Path
 from typing import Any
 
 PLUGIN_ID = "hermes-deep-research"
+_MAX_ERROR_CHARS = 500
+_MAX_TEXT_CHARS = 2000
 PLUGIN_DIR = Path(__file__).resolve().parent
 SKILLS_DIR = PLUGIN_DIR / "skills"
 DEEP_RESEARCH_SCRIPTS = SKILLS_DIR / "deep-research" / "scripts"
@@ -53,6 +55,7 @@ PREFLIGHT_SCHEMA: dict[str, Any] = {
             },
             "question": {
                 "type": "string",
+                "maxLength": 2000,
                 "description": "Optional research question or target to include in the preflight summary.",
             },
             "report_purpose": {
@@ -62,6 +65,7 @@ PREFLIGHT_SCHEMA: dict[str, Any] = {
             },
         },
         "required": [],
+        "additionalProperties": False,
     },
 }
 
@@ -76,6 +80,8 @@ INIT_CAMPAIGN_SCHEMA: dict[str, Any] = {
         "properties": {
             "target": {
                 "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
                 "description": "Research question or target topic to scaffold.",
             },
             "report_purpose": {
@@ -85,11 +91,15 @@ INIT_CAMPAIGN_SCHEMA: dict[str, Any] = {
             },
             "target_type": {
                 "type": "string",
+                "maxLength": 64,
                 "description": "Target category (e.g., 'idea', 'product', 'repo', 'market', 'workflow').",
             },
             "campaign_root": {
                 "type": "string",
-                "description": "Optional directory path for the campaign root. Defaults to the plugin data directory.",
+                "description": (
+                    "Optional campaign folder. Relative paths resolve inside the plugin campaigns folder; "
+                    "absolute paths must already be inside it. Defaults to a dated folder there."
+                ),
             },
             "deliverable_export": {
                 "type": "boolean",
@@ -97,6 +107,7 @@ INIT_CAMPAIGN_SCHEMA: dict[str, Any] = {
             },
         },
         "required": ["target"],
+        "additionalProperties": False,
     },
 }
 
@@ -111,7 +122,10 @@ CHECK_COMPLETION_SCHEMA: dict[str, Any] = {
         "properties": {
             "campaign_root": {
                 "type": "string",
-                "description": "Path to the campaign root directory containing manifest.json.",
+                "description": (
+                    "Campaign folder containing manifest.json. Relative paths resolve inside the plugin "
+                    "campaigns folder; absolute paths must already be inside it."
+                ),
             },
             "offline": {
                 "type": "boolean",
@@ -127,33 +141,112 @@ CHECK_COMPLETION_SCHEMA: dict[str, Any] = {
             },
         },
         "required": ["campaign_root"],
+        "additionalProperties": False,
     },
 }
 
 
 def _get_secret(name: str) -> str | None:
-    """Resolve a credential through Hermes secret_scope with os.environ fallback; never read .env files."""
+    """Resolve a credential through Hermes ``agent.secret_scope``; never read ``.env`` files.
+
+    Inside Hermes the scope owns the lookup, including the profile's ``.env`` overlay
+    and the process environment where that is allowed. A miss is final: falling back
+    to ``os.environ`` here would hand one profile another profile's key under the
+    multiplexing gateway. ``os.environ`` is read only when Hermes is not importable.
+    """
     try:
         from agent.secret_scope import get_secret
-        value = get_secret(name)
     except ImportError:
-        value = None
-    if not value:
         value = os.environ.get(name)
+    else:
+        value = get_secret(name)
     return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 def _default_campaigns_dir() -> Path:
-    """Return the profile-scoped plugin data directory for campaigns, or ~/.hermes/research-archive fallback."""
+    """Return the profile-scoped campaigns folder, resolved on every call.
+
+    Outside Hermes (``plugins.plugin_storage`` not importable) the CLI default
+    ``RESEARCH_ARCHIVE_ROOT`` or ``~/.hermes/research-archive`` is used. Other
+    failures inside Hermes propagate instead of silently switching folders.
+    """
     try:
         from plugins.plugin_storage import plugin_data_dir
+    except ImportError:
+        base = Path(os.environ.get("RESEARCH_ARCHIVE_ROOT", "~/.hermes/research-archive")).expanduser()
+    else:
         base = Path(plugin_data_dir(PLUGIN_ID)) / "campaigns"
-        base.mkdir(parents=True, exist_ok=True)
-        return base
-    except Exception:
-        fallback = Path(os.environ.get("RESEARCH_ARCHIVE_ROOT", "~/.hermes/research-archive")).expanduser()
-        fallback.mkdir(parents=True, exist_ok=True)
-        return fallback
+    base.mkdir(parents=True, exist_ok=True)
+    return base.resolve()
+
+
+def _confined_campaign(raw: str) -> Path:
+    """Resolve a campaign path and require it to sit strictly inside the campaigns folder."""
+    root = _default_campaigns_dir()
+    candidate = Path(raw).expanduser()
+    resolved = (candidate if candidate.is_absolute() else root / candidate).resolve()
+    if resolved == root or not resolved.is_relative_to(root):
+        raise ValueError(f"campaign_root must be a folder inside the plugin campaigns folder ({root})")
+    return resolved
+
+
+# ---------------------------------------------------------------------------
+# Argument checks and the shared tool envelope
+# ---------------------------------------------------------------------------
+
+def _error_payload(tool: str, exc: BaseException) -> dict[str, Any]:
+    message = str(exc) or type(exc).__name__
+    if len(message) > _MAX_ERROR_CHARS:
+        message = message[:_MAX_ERROR_CHARS] + "..."
+    return {"ok": False, "tool": tool, "error": message, "error_type": type(exc).__name__}
+
+
+def _json_tool(tool: str):
+    """Wrap a handler that takes a checked dict and returns a dict: always a JSON string, never raises."""
+
+    def decorate(handler):
+        @functools.wraps(handler)
+        def wrapped(args: Any = None, **kwargs: Any) -> str:
+            try:
+                if args is None:
+                    args = {}
+                if not isinstance(args, dict):
+                    raise ValueError("tool arguments must be a JSON object")
+                return json.dumps(handler(args))
+            except Exception as exc:  # noqa: BLE001 - tool contract: always return JSON
+                return json.dumps(_error_payload(tool, exc))
+
+        return wrapped
+
+    return decorate
+
+
+def _opt_text(args: dict[str, Any], key: str, default: str = "", *, limit: int = _MAX_TEXT_CHARS) -> str:
+    value = args.get(key)
+    if value is None:
+        return default
+    if not isinstance(value, str):
+        raise ValueError(f"{key} must be a string")
+    value = value.strip()
+    if len(value) > limit:
+        raise ValueError(f"{key} must be at most {limit} characters")
+    return value or default
+
+
+def _opt_choice(args: dict[str, Any], key: str, allowed: tuple[str, ...], default: str) -> str:
+    value = _opt_text(args, key, default, limit=64).lower()
+    if value not in allowed:
+        raise ValueError(f"Unsupported {key} {value!r}; expected one of: {', '.join(allowed)}.")
+    return value
+
+
+def _opt_bool(args: dict[str, Any], key: str, default: bool) -> bool:
+    value = args.get(key)
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise ValueError(f"{key} must be a boolean")
+    return value
 
 
 def _load_script_module(script_name: str):
@@ -253,197 +346,157 @@ def _estimate_full_cost(settings: Any) -> dict[str, Any]:
     }
 
 
-def deep_research_preflight(args: dict[str, Any] | None = None, **kwargs: Any) -> str:
+MODES = ("fast", "deepest", "full")
+PURPOSES = ("factual", "decision_assessment")
+
+
+@_json_tool("deep_research_preflight")
+def deep_research_preflight(args: dict[str, Any]) -> dict[str, Any]:
     """Tool handler: preflight check and cost estimator for fast, deepest, or full research."""
-    _ = kwargs
-    args = dict(args or {})
-    mode = str(args.get("mode") or "fast").strip().lower()
-    question = str(args.get("question") or "").strip()
-    report_purpose = str(args.get("report_purpose") or "factual").strip().lower()
+    mode = _opt_choice(args, "mode", MODES, "fast")
+    report_purpose = _opt_choice(args, "report_purpose", PURPOSES, "factual")
+    question = _opt_text(args, "question")
 
-    if mode not in {"fast", "deepest", "full"}:
-        return json.dumps({
-            "ok": False,
-            "error": f"Unsupported mode {mode!r}; expected one of: fast, deepest, full.",
-        })
-    if report_purpose not in {"factual", "decision_assessment"}:
-        return json.dumps({
-            "ok": False,
-            "error": f"Unsupported report_purpose {report_purpose!r}; expected factual or decision_assessment.",
-        })
+    openrouter_present = bool(_get_secret("OPENROUTER_API_KEY"))
+    apify_present = bool(_get_secret("APIFY_TOKEN"))
 
-    try:
-        openrouter_present = bool(_get_secret("OPENROUTER_API_KEY"))
-        apify_present = bool(_get_secret("APIFY_TOKEN"))
-
-        if mode in {"fast", "deepest"}:
-            cfg = json.loads(FAST_RESEARCH_CONFIG.read_text(encoding="utf-8"))
-            roles = {
-                role: {
-                    "model": details.get("id"),
-                    "vendor": details.get("vendor"),
-                    "prompt_usd_per_token": details.get("prompt_usd_per_token"),
-                    "completion_usd_per_token": details.get("completion_usd_per_token"),
-                }
-                for role, details in (cfg.get("models") or {}).items()
+    if mode in {"fast", "deepest"}:
+        cfg = json.loads(FAST_RESEARCH_CONFIG.read_text(encoding="utf-8"))
+        roles = {
+            role: {
+                "model": details.get("id"),
+                "vendor": details.get("vendor"),
+                "prompt_usd_per_token": details.get("prompt_usd_per_token"),
+                "completion_usd_per_token": details.get("completion_usd_per_token"),
             }
-            limits = cfg.get("limits", {})
-            cost_estimate = _estimate_fast_cost(cfg, deepest=(mode == "deepest"))
-        else:
-            rs = _load_script_module("research_settings")
-            settings = rs.load_settings(environ={})
-            roles = {}
-            for role in sorted(rs.ROLES):
-                resolved = settings.resolve(role)
-                roles[role] = {
-                    "model": resolved["model"],
-                    "developer": settings.developer(resolved["model"]),
-                    "fallback_models": resolved["fallback_models"],
-                    "max_tokens": resolved["max_tokens"],
-                }
-            limits = dict(settings._execution)
-            cost_estimate = _estimate_full_cost(settings)
+            for role, details in (cfg.get("models") or {}).items()
+        }
+        limits = cfg.get("limits", {})
+        cost_estimate = _estimate_fast_cost(cfg, deepest=(mode == "deepest"))
+    else:
+        rs = _load_script_module("research_settings")
+        settings = rs.load_settings(environ={})
+        roles = {}
+        for role in sorted(rs.ROLES):
+            resolved = settings.resolve(role)
+            roles[role] = {
+                "model": resolved["model"],
+                "developer": settings.developer(resolved["model"]),
+                "fallback_models": resolved["fallback_models"],
+                "max_tokens": resolved["max_tokens"],
+            }
+        limits = dict(settings._execution)
+        cost_estimate = _estimate_full_cost(settings)
 
-        return json.dumps({
-            "ok": True,
-            "mode": mode,
-            "question": question or None,
-            "report_purpose": report_purpose,
-            "credentials": {
-                "openrouter_key_present": openrouter_present,
-                "apify_token_present": apify_present,
-            },
-            "ready_for_live_calls": openrouter_present,
-            "roles": roles,
-            "limits": limits,
-            "estimated_cost_usd": cost_estimate,
-            "disclosures": {
-                "network_services": [
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    "https://openrouter.ai/api/v1/generation",
-                    "https://api.apify.com/v2/acts",
-                ],
-                "secret_resolution": "agent.secret_scope.get_secret (with os.environ fallback; no direct .env reads)",
-            },
-        })
-    except Exception as exc:
-        return json.dumps({"ok": False, "error": f"Preflight failed: {type(exc).__name__}: {exc}"})
+    return {
+        "ok": True,
+        "mode": mode,
+        "question": question or None,
+        "report_purpose": report_purpose,
+        "credentials": {
+            "openrouter_key_present": openrouter_present,
+            "apify_token_present": apify_present,
+        },
+        "ready_for_live_calls": openrouter_present,
+        "roles": roles,
+        "limits": limits,
+        "estimated_cost_usd": cost_estimate,
+        "disclosures": {
+            "network_services": [
+                "https://openrouter.ai/api/v1/chat/completions",
+                "https://openrouter.ai/api/v1/generation",
+                "https://api.apify.com/v2/acts",
+            ],
+            "secret_resolution": "agent.secret_scope.get_secret (os.environ only when Hermes is not importable; no direct .env reads)",
+        },
+    }
 
 
-def deep_research_init_campaign(args: dict[str, Any] | None = None, **kwargs: Any) -> str:
-    """Tool handler: scaffold a local deep-research campaign directory."""
-    _ = kwargs
-    args = dict(args or {})
-    target = str(args.get("target") or "").strip()
+@_json_tool("deep_research_init_campaign")
+def deep_research_init_campaign(args: dict[str, Any]) -> dict[str, Any]:
+    """Tool handler: scaffold a local deep-research campaign directory inside the campaigns folder."""
+    target = _opt_text(args, "target")
     if not target:
-        return json.dumps({"ok": False, "error": "Parameter 'target' is required and must be non-empty."})
+        raise ValueError("Parameter 'target' is required and must be non-empty.")
+    report_purpose = _opt_choice(args, "report_purpose", PURPOSES, "factual")
+    target_type = _opt_text(args, "target_type", "idea", limit=64).lower()
+    deliverable_export = _opt_bool(args, "deliverable_export", False)
+    raw_root = _opt_text(args, "campaign_root", limit=4096)
 
-    report_purpose = str(args.get("report_purpose") or "factual").strip().lower()
-    target_type = str(args.get("target_type") or "idea").strip().lower()
-    deliverable_export = bool(args.get("deliverable_export", False))
-    raw_root = str(args.get("campaign_root") or "").strip()
-
-    try:
-        init_mod = _load_script_module("init_campaign")
-        today = datetime.date.today().isoformat()
+    if raw_root:
+        root_path = _confined_campaign(raw_root)
+    else:
         slug = re.sub(r"[^a-z0-9]+", "-", target.lower()).strip("-")[:48] or "campaign"
-        if raw_root:
-            root_path = Path(raw_root).expanduser().resolve()
-        else:
-            root_path = (_default_campaigns_dir() / f"{today}-{slug}").resolve()
+        root_path = _confined_campaign(f"{datetime.date.today().isoformat()}-{slug}")
 
-        argv = [
-            str(DEEP_RESEARCH_SCRIPTS / "init_campaign.py"),
-            "--target",
-            target,
-            "--report-purpose",
-            report_purpose,
-            "--target-type",
-            target_type,
-            "--root",
-            str(root_path),
-        ]
-        if not deliverable_export:
-            argv.append("--no-deliverable-export")
+    init_mod = _load_script_module("init_campaign")
+    argv = [
+        "--target", target,
+        "--report-purpose", report_purpose,
+        "--target-type", target_type,
+        "--root", str(root_path),
+    ]
+    if not deliverable_export:
+        argv.append("--no-deliverable-export")
 
-        stdout_buf = io.StringIO()
-        old_argv = sys.argv[:]
-        try:
-            sys.argv = argv
-            with contextlib.redirect_stdout(stdout_buf):
-                rc = init_mod.main()
-        finally:
-            sys.argv = old_argv
+    stdout_buf = io.StringIO()
+    with contextlib.redirect_stdout(stdout_buf):
+        rc = init_mod.main(argv)
 
-        manifest_path = root_path / "manifest.json"
-        if rc != 0 or not manifest_path.is_file():
-            return json.dumps({
-                "ok": False,
-                "error": f"init_campaign exited with code {rc}",
-                "stdout": stdout_buf.getvalue().strip(),
-            })
+    manifest_path = root_path / "manifest.json"
+    if rc != 0 or not manifest_path.is_file():
+        raise RuntimeError(f"init_campaign exited with code {rc}: {stdout_buf.getvalue().strip()}")
 
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        return json.dumps({
-            "ok": True,
-            "campaign_root": str(root_path),
-            "manifest_path": str(manifest_path),
-            "report_purpose": manifest.get("report_purpose"),
-            "output_layout": manifest.get("output_layout"),
-            "lane_count": len(manifest.get("lanes") or []),
-            "lanes": [lane.get("id") for lane in (manifest.get("lanes") or []) if isinstance(lane, dict)],
-        })
-    except Exception as exc:
-        return json.dumps({"ok": False, "error": f"Campaign scaffold failed: {type(exc).__name__}: {exc}"})
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return {
+        "ok": True,
+        "campaign_root": str(root_path),
+        "manifest_path": str(manifest_path),
+        "report_purpose": manifest.get("report_purpose"),
+        "output_layout": manifest.get("output_layout"),
+        "lane_count": len(manifest.get("lanes") or []),
+        "lanes": [lane.get("id") for lane in (manifest.get("lanes") or []) if isinstance(lane, dict)],
+    }
 
 
-def deep_research_check_completion(args: dict[str, Any] | None = None, **kwargs: Any) -> str:
+@_json_tool("deep_research_check_completion")
+def deep_research_check_completion(args: dict[str, Any]) -> dict[str, Any]:
     """Tool handler: run completion, receipt-integrity, and saved-quote checks on a campaign root."""
-    _ = kwargs
-    args = dict(args or {})
-    raw_root = str(args.get("campaign_root") or "").strip()
+    raw_root = _opt_text(args, "campaign_root", limit=4096)
     if not raw_root:
-        return json.dumps({"ok": False, "error": "Parameter 'campaign_root' is required."})
+        raise ValueError("Parameter 'campaign_root' is required.")
+    offline = _opt_bool(args, "offline", True)
+    probe = _opt_bool(args, "probe", False)
+    write_receipt = _opt_bool(args, "write_receipt", False)
 
-    offline = bool(args.get("offline", True))
-    probe = bool(args.get("probe", False))
-    write_receipt = bool(args.get("write_receipt", False))
+    root_path = _confined_campaign(raw_root)
+    manifest_path = root_path / "manifest.json"
+    if not root_path.is_dir() or not manifest_path.is_file():
+        raise FileNotFoundError(f"Campaign manifest not found at {manifest_path}")
 
-    try:
-        root_path = Path(raw_root).expanduser().resolve()
-        manifest_path = root_path / "manifest.json"
-        if not root_path.is_dir() or not manifest_path.is_file():
-            return json.dumps({
-                "ok": False,
-                "error": f"Campaign manifest not found at {manifest_path}",
-            })
+    cc = _load_script_module("complete_campaign")
+    result = cc.evaluate(
+        root_path,
+        online=not offline,
+        probe=probe,
+        homes=[],
+        pin_checker=False,
+    )
 
-        cc = _load_script_module("complete_campaign")
-        with contextlib.chdir(DEEP_RESEARCH_SCRIPTS):
-            result = cc.evaluate(
-                root_path,
-                online=not offline,
-                probe=probe,
-                homes=[],
-                pin_checker=False,
-            )
+    if write_receipt:
+        out_file = root_path / "receipts" / "completion.json"
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
 
-        if write_receipt:
-            out_file = root_path / "receipts" / "completion.json"
-            out_file.parent.mkdir(parents=True, exist_ok=True)
-            out_file.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-
-        return json.dumps({
-            "ok": result.get("status") == "PASS",
-            "status": result.get("status"),
-            "classes": result.get("classes", []),
-            "steps": result.get("steps", []),
-            "checked_files_sha256": result.get("checked_files_sha256", {}),
-            "campaign_root": str(root_path),
-            "online": not offline,
-        })
-    except Exception as exc:
-        return json.dumps({"ok": False, "error": f"Completion check failed: {type(exc).__name__}: {exc}"})
+    return {
+        "ok": result.get("status") == "PASS",
+        "status": result.get("status"),
+        "classes": result.get("classes", []),
+        "steps": result.get("steps", []),
+        "checked_files_sha256": result.get("checked_files_sha256", {}),
+        "campaign_root": str(root_path),
+        "online": not offline,
+    }
 
 
 _HELP_TEXT = """\
@@ -459,8 +512,15 @@ Subcommands:
 
 
 def handle_deep_research_command(raw_args: str = "", **kwargs: Any) -> str:
-    """Slash-command handler for /deep-research."""
+    """Slash-command handler for /deep-research; reports problems as text and never raises."""
     _ = kwargs
+    try:
+        return _dispatch_command(raw_args)
+    except Exception as exc:  # noqa: BLE001 - never crash the session
+        return f"deep-research error: {_error_payload('deep-research', exc)['error']}"
+
+
+def _dispatch_command(raw_args: str) -> str:
     text = (raw_args or "").strip()
     if not text or text in {"help", "-h", "--help"}:
         return _HELP_TEXT

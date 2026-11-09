@@ -1441,7 +1441,7 @@ def v2_manifest_outputs(plain_brief_rel: str) -> dict:
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Scaffold a deep-research campaign")
     parser.add_argument("--target", required=True)
     parser.add_argument("--target-type", default="idea")
@@ -1462,7 +1462,7 @@ def main() -> int:
         "--output-layout", default=OUTPUT_LAYOUT_V2, choices=LAYOUT_CHOICES,
         help="brief-and-reference-v2 (default; also 'v2'): plain brief + reference pack. 'legacy': the four-output layout (external pack, full pack, executive brief, plain brief).",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     args.output_layout = OUTPUT_LAYOUT_V2 if args.output_layout in {OUTPUT_LAYOUT_V2, "v2"} else "legacy"
     v2 = is_v2(args)
 

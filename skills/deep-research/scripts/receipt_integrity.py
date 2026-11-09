@@ -168,13 +168,14 @@ def static_check(record: Any, *, require_hash_binding: bool = True, require_mode
 
 
 def _api_key() -> str:
+    # Inside Hermes the secret scope answers for the active profile and a miss is final;
+    # os.environ is read only when Hermes is not importable (standalone CLI use).
     try:
         from agent.secret_scope import get_secret
-        env_key = get_secret("OPENROUTER_API_KEY")
     except ImportError:
-        env_key = None
-    if not env_key:
         env_key = os.environ.get("OPENROUTER_API_KEY")
+    else:
+        env_key = get_secret("OPENROUTER_API_KEY")
     if env_key and env_key.strip():
         return env_key.strip()
     raise RuntimeError("OPENROUTER_API_KEY not found")

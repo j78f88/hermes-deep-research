@@ -26,13 +26,14 @@ SYNC_PATH = "https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items"
 
 
 def _apify_token() -> str | None:
+    # Inside Hermes the secret scope answers for the active profile and a miss is final;
+    # os.environ is read only when Hermes is not importable (standalone CLI use).
     try:
         from agent.secret_scope import get_secret
-        value = get_secret("APIFY_TOKEN")
     except ImportError:
-        value = None
-    if not value:
         value = os.environ.get("APIFY_TOKEN")
+    else:
+        value = get_secret("APIFY_TOKEN")
     return value.strip() if value and value.strip() else None
 
 

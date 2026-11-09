@@ -14,6 +14,10 @@ Saved quotations and hashes prove byte relationships, not truth. Provider receip
 
 Keep private context separate from public workers. Confine source files to the campaign and reject path escapes. Never commit keys, tokens, session databases or real private campaign records.
 
+## Hermes plugin boundaries
+
+Registered tools read and write only inside the plugin data folder. Tool arguments are type-checked, not coerced, so a string such as `"false"` cannot switch on a live probe. Credentials resolve through Hermes secret scope and a miss is final. Tool errors return a short JSON envelope and never raise into the session.
+
 ## Live operations
 
 Live research can incur model and search charges. Set limits and confirm access before starting. Optional exports, outreach and production changes need separate authorisation.

@@ -54,13 +54,14 @@ class CompletionResult:
 
 def _api_key():
     """Use the existing reference, once only; auth failures never invoke this again."""
+    # Inside Hermes the secret scope answers for the active profile and a miss is final;
+    # os.environ is read only when Hermes is not importable (standalone CLI use).
     try:
         from agent.secret_scope import get_secret
-        value = get_secret('OPENROUTER_API_KEY')
     except ImportError:
-        value = None
-    if not value:
         value = os.environ.get('OPENROUTER_API_KEY')
+    else:
+        value = get_secret('OPENROUTER_API_KEY')
     if value and value.strip():
         return value.strip()
     raise RuntimeError('existing OpenRouter secret reference is unavailable')

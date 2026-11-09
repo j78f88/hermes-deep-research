@@ -69,6 +69,27 @@ class FakePluginContext:
         self.hooks.append({"hook_name": hook_name, "callback": callback, "kwargs": kwargs})
 
 
+@pytest.fixture()
+def campaigns(tmp_path: Path, monkeypatch) -> Path:
+    """Fake Hermes storage: plugins.plugin_storage.plugin_data_dir -> tmp_path/data/<name>."""
+    data = tmp_path / "data"
+
+    def plugin_data_dir(name: str) -> Path:
+        path = data / name
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    pkg = types.ModuleType("plugins")
+    pkg.__path__ = []  # type: ignore[attr-defined]
+    storage = types.ModuleType("plugins.plugin_storage")
+    storage.plugin_data_dir = plugin_data_dir  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "plugins", pkg)
+    monkeypatch.setitem(sys.modules, "plugins.plugin_storage", storage)
+    root = data / "hermes-deep-research" / "campaigns"
+    root.mkdir(parents=True)
+    return root.resolve()
+
+
 def test_manifest_and_pyproject_compliance() -> None:
     manifest_path = REPO_ROOT / "plugin.yaml"
     pyproject_path = REPO_ROOT / "pyproject.toml"
@@ -88,7 +109,11 @@ def test_manifest_and_pyproject_compliance() -> None:
         entry["name"] if isinstance(entry, dict) else entry
         for entry in manifest.get("requires_env", [])
     }
-    assert {"OPENROUTER_API_KEY", "APIFY_TOKEN"} <= env_names
+    assert env_names == {"OPENROUTER_API_KEY"}
+    optional_names = {entry["name"] for entry in manifest.get("optional_env", [])}
+    assert optional_names == {"APIFY_TOKEN"}
+    assert manifest["requires_hermes"] == ">=0.22.6"
+    assert set(manifest["disclosures"]) == {"storage", "subprocesses", "network", "credentials"}
 
     try:
         import tomllib
@@ -151,13 +176,13 @@ def test_preflight_handler_rejects_invalid_inputs_without_raising() -> None:
     assert "report_purpose" in bad_purpose["error"]
 
 
-def test_init_and_check_completion_tool_handlers(tmp_path: Path) -> None:
+def test_init_and_check_completion_tool_handlers(tmp_path: Path, campaigns: Path) -> None:
     plugin = load_plugin_module()
 
     missing_target = json.loads(plugin.deep_research_init_campaign({}))
     assert missing_target["ok"] is False
 
-    campaign_root = tmp_path / "scaffolded-campaign"
+    campaign_root = campaigns / "scaffolded-campaign"
     init_res = json.loads(
         plugin.deep_research_init_campaign({
             "target": "Evaluate local verification gates",
@@ -183,13 +208,17 @@ def test_init_and_check_completion_tool_handlers(tmp_path: Path) -> None:
     assert (campaign_root / "receipts" / "completion.json").is_file()
 
     missing_root = json.loads(
-        plugin.deep_research_check_completion({"campaign_root": str(tmp_path / "does-not-exist")})
+        plugin.deep_research_check_completion({"campaign_root": str(campaigns / "does-not-exist")})
     )
     assert missing_root["ok"] is False
+    assert missing_root["tool"] == "deep_research_check_completion"
+    assert missing_root["error_type"] == "FileNotFoundError"
 
 
 def test_slash_command_subcommands(tmp_path: Path, monkeypatch) -> None:
     plugin = load_plugin_module()
+    # Standalone path: no Hermes storage module, so RESEARCH_ARCHIVE_ROOT is the confinement root.
+    monkeypatch.setitem(sys.modules, "plugins.plugin_storage", None)
     monkeypatch.setenv("RESEARCH_ARCHIVE_ROOT", str(tmp_path / "archive"))
 
     help_out = plugin.handle_deep_research_command("help")
@@ -281,3 +310,139 @@ def test_complete_campaign_has_no_sys_path_mutation_and_docs_drop_private_checko
     assert "~/source-intelligence" not in readme
     assert "~/source-intelligence" not in skill_md
     assert "$HOME/source-intelligence" not in skill_md
+
+
+def test_secret_scope_miss_is_final_inside_hermes(monkeypatch) -> None:
+    """Under the multiplexing gateway a scope miss must not leak another profile's os.environ key."""
+    plugin = load_plugin_module()
+    mc = load_script_module("model_client")
+    ri = load_script_module("receipt_integrity")
+    apify = load_script_module("acquire_youtube_apify")
+    for name in ("OPENROUTER_API_KEY", "APIFY_TOKEN"):
+        monkeypatch.setenv(name, "other-profile-value")
+
+    fake_agent = types.ModuleType("agent")
+    fake_scope = types.ModuleType("agent.secret_scope")
+    fake_scope.get_secret = lambda name, default=None: None  # type: ignore[attr-defined]
+    fake_agent.secret_scope = fake_scope  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "agent", fake_agent)
+    monkeypatch.setitem(sys.modules, "agent.secret_scope", fake_scope)
+
+    assert plugin._get_secret("OPENROUTER_API_KEY") is None
+    with pytest.raises(RuntimeError):
+        mc._api_key()
+    with pytest.raises(RuntimeError):
+        ri._api_key()
+    assert apify._apify_token() is None
+
+    # Without Hermes importable, standalone use still reads the process environment.
+    monkeypatch.setitem(sys.modules, "agent.secret_scope", None)
+    assert plugin._get_secret("OPENROUTER_API_KEY") == "other-profile-value"
+    assert mc._api_key() == "other-profile-value"
+    assert ri._api_key() == "other-profile-value"
+    assert apify._apify_token() == "other-profile-value"
+
+
+def test_campaign_root_is_confined_to_plugin_storage(tmp_path: Path, campaigns: Path) -> None:
+    plugin = load_plugin_module()
+    outside = tmp_path / "outside-campaign"
+    link = campaigns / "link-out"
+    link.symlink_to(tmp_path, target_is_directory=True)
+
+    for bad in (str(outside), "../escape", str(campaigns), ".", str(link / "x")):
+        for tool, args in (
+            (plugin.deep_research_init_campaign, {"target": "Confinement probe", "campaign_root": bad}),
+            (plugin.deep_research_check_completion, {"campaign_root": bad}),
+        ):
+            payload = json.loads(tool(args))
+            assert payload["ok"] is False, (bad, payload)
+            assert "inside the plugin campaigns folder" in payload["error"], (bad, payload)
+    assert not outside.exists()
+    assert not (tmp_path / "x").exists()
+    assert not (tmp_path.parent / "escape").exists()
+
+
+def test_default_campaign_lands_in_plugin_storage_and_leaves_process_state_alone(tmp_path: Path, campaigns: Path) -> None:
+    plugin = load_plugin_module()
+    argv_before, cwd_before = list(sys.argv), os.getcwd()
+    payload = json.loads(plugin.deep_research_init_campaign({"target": "Default folder check"}))
+    assert payload["ok"] is True, payload
+    assert Path(payload["campaign_root"]).parent == campaigns
+    checked = json.loads(plugin.deep_research_check_completion({"campaign_root": payload["campaign_root"]}))
+    assert checked["status"] in {"HOLD", "FAIL"}
+    assert sys.argv == argv_before
+    assert os.getcwd() == cwd_before
+
+
+@pytest.mark.parametrize(
+    "tool, args, key",
+    [
+        ("deep_research_init_campaign", {"target": "x", "deliverable_export": "false"}, "deliverable_export"),
+        ("deep_research_check_completion", {"campaign_root": "c", "probe": "false"}, "probe"),
+        ("deep_research_check_completion", {"campaign_root": "c", "offline": 0}, "offline"),
+        ("deep_research_check_completion", {"campaign_root": "c", "write_receipt": "no"}, "write_receipt"),
+        ("deep_research_preflight", {"mode": 5}, "mode"),
+        ("deep_research_preflight", {"question": "q" * 2001}, "question"),
+        ("deep_research_init_campaign", {"target": ["not", "text"]}, "target"),
+    ],
+)
+def test_arguments_are_type_checked_not_coerced(campaigns: Path, tool: str, args: dict, key: str) -> None:
+    plugin = load_plugin_module()
+    payload = json.loads(getattr(plugin, tool)(args))
+    assert payload["ok"] is False
+    assert payload["tool"] == tool
+    assert payload["error_type"] == "ValueError"
+    assert key in payload["error"]
+    assert not list(campaigns.iterdir())
+
+
+def test_handlers_never_raise_and_truncate_errors(campaigns: Path, monkeypatch) -> None:
+    plugin = load_plugin_module()
+    for tool in (plugin.deep_research_preflight, plugin.deep_research_init_campaign, plugin.deep_research_check_completion):
+        for bad in ("a string", 7, ["x"]):
+            payload = json.loads(tool(bad, task_id="t", future_kwarg=True))
+            assert payload["ok"] is False and payload["error_type"] == "ValueError"
+    long_message = "x" * 5000
+    monkeypatch.setattr(plugin, "_get_secret", lambda name: (_ for _ in ()).throw(RuntimeError(long_message)))
+    payload = json.loads(plugin.deep_research_preflight({"mode": "fast"}))
+    assert payload["ok"] is False and payload["error_type"] == "RuntimeError"
+    assert len(payload["error"]) <= plugin._MAX_ERROR_CHARS + 3
+    assert plugin.handle_deep_research_command("preflight").startswith("deep-research preflight error:")
+
+
+def test_schemas_are_strict_and_register_is_inert(tmp_path: Path, monkeypatch) -> None:
+    plugin = load_plugin_module()
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("registration attempted I/O")
+
+    monkeypatch.setattr(plugin, "_default_campaigns_dir", forbidden)
+    monkeypatch.setattr(plugin, "_get_secret", forbidden)
+    monkeypatch.setattr("subprocess.run", forbidden)
+    monkeypatch.setattr("socket.socket", forbidden)
+    ctx = FakePluginContext()
+    plugin.register(ctx)
+    assert len(ctx.tools) == 3
+    for tool in ctx.tools:
+        params = tool["schema"]["parameters"]
+        assert params["additionalProperties"] is False
+        assert set(params.get("required", [])) <= set(params["properties"])
+        assert tool["schema"]["name"] == tool["name"]
+
+
+def test_plugin_entry_has_no_dotenv_or_process_global_mutation() -> None:
+    tree = ast.parse((REPO_ROOT / "__init__.py").read_text(encoding="utf-8"))
+    docstrings = {
+        id(node.body[0].value)
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.ClassDef))
+        and node.body
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Constant)
+    }
+    forbidden_attrs = {("sys", "argv"), ("sys", "path"), ("os", "chdir"), ("contextlib", "chdir")}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+            assert (node.value.id, node.attr) not in forbidden_attrs, f"line {node.lineno}"
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings:
+            assert ".env" not in node.value.replace("get_secret (os.environ only when Hermes is not importable; no direct .env reads)", ""), f"line {node.lineno}"
