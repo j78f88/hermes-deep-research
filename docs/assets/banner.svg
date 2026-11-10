@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="t d">
+<title id="t">Deep research</title>
+<desc id="d">Research backed by saved sources and checked quotes. Commands: /deep-research, 3 tools, 3 skills.</desc>
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0f172a"/><stop offset="1" stop-color="#1e293b"/></linearGradient></defs>
+<rect width="1200" height="300" rx="20" fill="url(#bg)"/>
+<rect x="0" y="0" width="14" height="300" rx="7" fill="#38bdf8"/>
+<text x="64" y="112" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="56" font-weight="700" fill="#f8fafc">Deep research</text>
+<text x="64" y="164" font-family="'Segoe UI', Helvetica, Arial, sans-serif" font-size="24" fill="#cbd5e1">Research backed by saved sources and checked quotes</text>
+<rect x="64" y="204" width="210" height="48" rx="24" fill="#0b1220" stroke="#38bdf8" stroke-width="2"/>
+<text x="82" y="236" font-family="'SFMono-Regular', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="20" fill="#7dd3fc">/deep-research</text>
+<rect x="290" y="204" width="123" height="48" rx="24" fill="#0b1220" stroke="#38bdf8" stroke-width="2"/>
+<text x="308" y="236" font-family="'SFMono-Regular', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="20" fill="#7dd3fc">3 tools</text>
+<rect x="428" y="204" width="135" height="48" rx="24" fill="#0b1220" stroke="#38bdf8" stroke-width="2"/>
+<text x="446" y="236" font-family="'SFMono-Regular', Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="20" fill="#7dd3fc">3 skills</text>
+</svg>

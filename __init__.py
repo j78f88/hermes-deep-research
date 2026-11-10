@@ -499,16 +499,32 @@ def deep_research_check_completion(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-_HELP_TEXT = """\
-/deep-research — research preflight, cost estimator, campaign scaffold, and completion checker
+HELP_TEXT = """\
+/deep-research - research preflight, campaign scaffold and completion check
 
-Subcommands:
-  preflight [fast|deepest|full] [question]   Show role models, credential state, and estimated USD cost
-  estimate [fast|deepest|full] [question]    Alias for preflight
-  init <target question>                     Scaffold a new local factual campaign directory
-  check <campaign_root>                      Run offline completion and quote checks on a campaign directory
-  help                                       Show this usage message
-"""
+Usage:
+  /deep-research preflight [mode] [question]   Show models, key state and cost estimate
+  /deep-research estimate [mode] [question]    Same as preflight
+  /deep-research init <target question>        Scaffold a local campaign folder
+  /deep-research check <campaign_root>         Run the offline completion and quote check
+  /deep-research help                          Show this message
+
+mode is fast (default), deepest or full.
+
+Examples:
+  /deep-research preflight deepest How does X work?
+  /deep-research init How does X work?
+  /deep-research check <campaign_root printed by init>
+
+Notes:
+  These commands make no network calls and spend nothing. Key state is shown as
+  present or missing, never as a value.
+  Paid research runs through the bundled skills and needs OPENROUTER_API_KEY.
+  Campaigns are saved under the plugin data folder.
+  The same steps are available to the agent as deep_research_preflight,
+  deep_research_init_campaign and deep_research_check_completion."""
+_HELP_TEXT = HELP_TEXT  # name kept for callers that imported the old constant
+HELP_WORDS = frozenset({"help", "-h", "--help", "?"})
 
 
 def handle_deep_research_command(raw_args: str = "", **kwargs: Any) -> str:
@@ -522,8 +538,8 @@ def handle_deep_research_command(raw_args: str = "", **kwargs: Any) -> str:
 
 def _dispatch_command(raw_args: str) -> str:
     text = (raw_args or "").strip()
-    if not text or text in {"help", "-h", "--help"}:
-        return _HELP_TEXT
+    if not text or text.lower() in HELP_WORDS:
+        return HELP_TEXT
 
     parts = text.split(maxsplit=1)
     subcmd = parts[0].lower()
@@ -552,7 +568,7 @@ def _dispatch_command(raw_args: str) -> str:
 
     if subcmd == "init":
         if not rest:
-            return "Usage: /deep-research init <target question>"
+            return "Usage: /deep-research init <target question>. Run /deep-research help for examples."
         payload = json.loads(deep_research_init_campaign({"target": rest}))
         if not payload.get("ok"):
             return f"deep-research init error: {payload.get('error')}"
@@ -564,7 +580,7 @@ def _dispatch_command(raw_args: str) -> str:
 
     if subcmd == "check":
         if not rest:
-            return "Usage: /deep-research check <campaign_root>"
+            return "Usage: /deep-research check <campaign_root>. Run /deep-research help for examples."
         payload = json.loads(deep_research_check_completion({"campaign_root": rest, "offline": True}))
         if "status" not in payload and not payload.get("ok"):
             return f"deep-research check error: {payload.get('error')}"
@@ -574,7 +590,7 @@ def _dispatch_command(raw_args: str) -> str:
             f"  Classes: {', '.join(payload.get('classes') or []) or 'none'}"
         )
 
-    return f"Unknown subcommand: {subcmd}\n\n{_HELP_TEXT}"
+    return f"Unknown subcommand: {subcmd}. Run /deep-research help for usage."
 
 
 def register(ctx: Any) -> None:
@@ -608,6 +624,6 @@ def register(ctx: Any) -> None:
     ctx.register_command(
         "deep-research",
         handler=handle_deep_research_command,
-        description="Preflight, estimate cost, scaffold, or check a deep-research campaign",
-        args_hint="[preflight|estimate|init|check] [args]",
+        description="Preflight and cost estimate, scaffold or check a research campaign",
+        args_hint="preflight|estimate|init|check [args] | help",
     )

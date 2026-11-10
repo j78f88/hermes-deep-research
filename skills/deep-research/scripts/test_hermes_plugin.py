@@ -446,3 +446,75 @@ def test_plugin_entry_has_no_dotenv_or_process_global_mutation() -> None:
             assert (node.value.id, node.attr) not in forbidden_attrs, f"line {node.lineno}"
         if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docstrings:
             assert ".env" not in node.value.replace("get_secret (os.environ only when Hermes is not importable; no direct .env reads)", ""), f"line {node.lineno}"
+
+
+# --- /help text, README and visuals (docs pass) ------------------------------
+
+import xml.etree.ElementTree as ET  # noqa: E402
+
+TOOL_NAMES = ["deep_research_preflight", "deep_research_init_campaign", "deep_research_check_completion"]
+
+
+def _readme() -> str:
+    return (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("word", ["", "help", "HELP", "-h", "--help", "?"])
+def test_help_words_all_print_the_help_text(word: str) -> None:
+    plugin = load_plugin_module()
+    assert plugin.handle_deep_research_command(word) == plugin.HELP_TEXT
+
+
+def test_help_text_covers_every_subcommand_mode_and_tool() -> None:
+    plugin = load_plugin_module()
+    for needle in ["Usage:", "Examples:", "Notes:", "preflight", "estimate", "init", "check", "help",
+                   "fast", "deepest", "full", "OPENROUTER_API_KEY", *TOOL_NAMES]:
+        assert needle in plugin.HELP_TEXT, needle
+    assert max(len(line) for line in plugin.HELP_TEXT.splitlines()) <= 90
+
+
+def test_unknown_subcommand_names_it_and_points_to_help() -> None:
+    plugin = load_plugin_module()
+    reply = plugin.handle_deep_research_command("frobnicate now")
+    assert reply == "Unknown subcommand: frobnicate. Run /deep-research help for usage."
+    assert "Examples:" not in reply
+
+
+def test_registered_hint_lists_every_subcommand() -> None:
+    plugin = load_plugin_module()
+    ctx = FakePluginContext()
+    plugin.register(ctx)
+    command = next(c for c in ctx.commands if c["name"] == "deep-research")
+    for needle in ["preflight", "estimate", "init", "check", "help"]:
+        assert needle in command["args_hint"], needle
+    assert "/deep-research" not in command["description"]
+
+
+def test_readme_shows_the_exact_help_text() -> None:
+    plugin = load_plugin_module()
+    assert "```text\n" + plugin.HELP_TEXT + "\n```" in _readme()
+
+
+def test_readme_troubleshooting_quotes_real_messages() -> None:
+    source = (REPO_ROOT / "__init__.py").read_text(encoding="utf-8")
+    for message in ["OpenRouter key present:", "Unknown subcommand:",
+                    "campaign_root must be a folder inside the plugin campaigns folder",
+                    "Campaign manifest not found"]:
+        assert message in _readme() and message in source, message
+
+
+def test_readme_commands_keep_their_line_continuations() -> None:
+    assert "   --" not in _readme()
+
+
+def test_readme_visuals_exist_parse_and_stay_self_contained() -> None:
+    readme = _readme()
+    for name in ["banner.svg", "flow.svg"]:
+        assert f"docs/assets/{name})" in readme
+        path = REPO_ROOT / "docs" / "assets" / name
+        root = ET.parse(path).getroot()
+        assert root.tag.endswith("svg")
+        assert root.find("{http://www.w3.org/2000/svg}title") is not None
+        body = path.read_text(encoding="utf-8")
+        assert "<script" not in body and "href=" not in body and "@import" not in body
+        assert body.count("http") == body.count("http://www.w3.org/2000/svg")
