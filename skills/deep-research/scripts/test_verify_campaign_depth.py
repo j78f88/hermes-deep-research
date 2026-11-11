@@ -134,6 +134,13 @@ def test_qa_holds_require_pass_and_matching_pack_hash(tmp_path):
         lane["status"] = "completed"
     state["context_release"] = {"released_at": "2026-11-11T00:00:00+00:00"}
     (root / "campaign_state.json").write_text(json.dumps(state))
+    # A clean body-free read audit with a public row for every research lane
+    (root / "receipts" / "worker-read-audit.json").write_text(json.dumps({
+        "schema_version": "worker-read-audit-v1",
+        "sessions": [{"worker": lane["id"], "session_id": f"s-{lane['id']}", "public_lane": True,
+                      "pattern_hits": {}} for lane in state["lanes"]
+                     if not lane["id"].startswith(("08-", "09-"))],
+    }))
     ctx = json.loads((root / "context" / "context-brief.json").read_text())
     ctx.update(status="complete", released_at="2026-11-11T00:00:00+00:00", no_relevant_context_reason="external only")
     (root / "context" / "context-brief.json").write_text(json.dumps(ctx))

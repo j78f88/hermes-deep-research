@@ -1,6 +1,7 @@
 """Tests for run_campaign.py, the phased run driver. A fake hermes binary; no model call."""
 import json
 import os
+import sqlite3
 import stat
 import sys
 import textwrap
@@ -104,6 +105,17 @@ FAKE = textwrap.dedent(r'''
 LANES = ["01-steering-source-map", "02-current-state-truth", "04-prior-art-alternatives"]
 
 
+def make_state_db(path: Path) -> Path:
+    """An empty Hermes session store, so the lane read audit runs and records zero hits."""
+    con = sqlite3.connect(path)
+    con.execute("create table sessions (id text, parent_session_id text, model text, tool_call_count int, "
+                "actual_cost_usd real, estimated_cost_usd real)")
+    con.execute("create table messages (session_id text, tool_calls text)")
+    con.commit()
+    con.close()
+    return path
+
+
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     fake = tmp_path / "hermes"
@@ -115,6 +127,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("FAKE_AGENT_LOG", str(agent_log))
     monkeypatch.setenv("FAKE_PLAN", "{}")
     root = tmp_path / "campaign"
+    state_db = make_state_db(tmp_path / "state.db")
     mechanics = {"plain_brief": 0, "completion": 0, "export": 0}
 
     def preflight(root, primary):
@@ -158,7 +171,7 @@ def env(tmp_path, monkeypatch):
         return rc.main(["start", "--root", str(root), "--question", "What does the example protocol specify?",
                         "--target", "Example protocol", "--lanes", ",".join(LANES), "--date", "2026-11-11",
                         "--export", "dry-run", "--export-reason", "test campaign", "--hermes-bin", str(fake),
-                        "--launcher", "direct", "--agent-log", str(agent_log), "--state-db", str(tmp_path / "no.db"),
+                        "--launcher", "direct", "--agent-log", str(agent_log), "--state-db", str(state_db),
                         "--wait-timeout", "120", "--wait-interval", "0.05", *extra])
 
     def resume(plan=None, *extra):

@@ -79,7 +79,8 @@ def check_pre_brief(root: Path, producers: list[str], controller: str, round_no:
     audit_path = root / "receipts" / "worker-read-audit.json"
     state_path = root / "campaign_state.json"
     ctx_path = root / "context" / "context-brief.json"
-    audit = read_json(audit_path) or {}
+    audit_data = read_json(audit_path)
+    audit = audit_data or {}
     state = read_json(state_path) or {}
     ctx = read_json(ctx_path) or {}
 
@@ -108,10 +109,27 @@ def check_pre_brief(root: Path, producers: list[str], controller: str, round_no:
             if cat_hits:
                 isolation_ok = False
                 repairs.append(f"Lane {lane_id} had {len(cat_hits)} {cat} read hit(s) in worker-read-audit.json")
+    # Fail closed: a missing, unreadable or errored audit, or a research lane without a public
+    # audit row, cannot prove zero forbidden reads.
+    if audit_data is None:
+        isolation_ok = False
+        repairs.append("receipts/worker-read-audit.json is missing or unreadable; rerun the read audit")
+    elif audit.get("error"):
+        isolation_ok = False
+        repairs.append(f"receipts/worker-read-audit.json holds an error: {audit.get('error')}")
+    audited = {str(row.get("worker")) for row in audit.get("sessions") or []
+               if isinstance(row, dict) and row.get("public_lane") and row.get("worker")}
+    research_lanes = [str(lane.get("id")) for lane in state.get("lanes") or []
+                      if isinstance(lane, dict) and lane.get("id")
+                      and not str(lane.get("id")).startswith(("08-", "09-"))]
+    missing = [lane_id for lane_id in research_lanes if lane_id not in audited]
+    if audit_data is not None and not audit.get("error") and missing:
+        isolation_ok = False
+        repairs.append("receipts/worker-read-audit.json has no public lane row for: " + ", ".join(missing))
     for row in audit.get("sessions") or []:
         if not isinstance(row, dict):
             continue
-        lane_id = row.get("lane") or row.get("session_id") or "unknown"
+        lane_id = row.get("worker") or row.get("session_id") or "unknown"
         phits = row.get("pattern_hits") if isinstance(row.get("pattern_hits"), dict) else {}
         for cat in AUDIT_CATEGORIES:
             count = phits.get(cat) or 0

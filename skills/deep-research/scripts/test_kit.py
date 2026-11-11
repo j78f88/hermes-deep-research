@@ -18,6 +18,7 @@ import closeout  # noqa: E402
 import context_edit  # noqa: E402
 import fan_in  # noqa: E402
 import gh_get  # noqa: E402
+import mechanical_qa  # noqa: E402
 import phase_runner  # noqa: E402
 import read_audit  # noqa: E402
 import save_source  # noqa: E402
@@ -196,6 +197,64 @@ def test_read_audit_counts_hits_without_bodies(tmp_path):
     hits = data["sessions"][0]["pattern_hits"]
     assert hits["skills_tool"] == 1 and hits["context_brief"] == 1 and hits["other_lane_files"] == 1
     assert data["sessions"][0]["sessions_scanned"] == ["s1", "c1"]
+
+
+def pre_brief_root(tmp_path: Path, audit: dict | None) -> Path:
+    """Minimal campaign for check_pre_brief: two research lanes plus a controller lane, released context."""
+    root = tmp_path / "campaign"
+    (root / "context").mkdir(parents=True)
+    (root / "receipts").mkdir()
+    lanes = [{"id": lane, "status": "completed"} for lane in ("01-a", "02-b", "08-controller-synthesis-actionregister")]
+    (root / "campaign_state.json").write_text(json.dumps(
+        {"lanes": lanes, "context_release": {"released_at": "2026-11-11T00:00:00+00:00"}}))
+    (root / "context" / "context-brief.json").write_text(json.dumps(
+        {"schema_version": "deep-research-context-brief-v1", "status": "complete", "items": [],
+         "no_relevant_context_reason": "external only"}))
+    if audit is not None:
+        (root / "receipts" / "worker-read-audit.json").write_text(json.dumps(audit))
+    return root
+
+
+def clean_audit(*workers: str) -> dict:
+    return {"schema_version": "worker-read-audit-v1",
+            "sessions": [{"worker": w, "session_id": f"s-{w}", "public_lane": True, "pattern_hits": {}} for w in workers]}
+
+
+def test_pre_brief_isolation_passes_with_a_clean_audit_for_every_research_lane(tmp_path):
+    out = mechanical_qa.check_pre_brief(pre_brief_root(tmp_path, clean_audit("01-a", "02-b")), ["p"], "c")
+    assert out["checks"]["isolation"] == "PASS" and out["status"] == "PASS"
+
+
+def test_pre_brief_isolation_fails_closed_when_the_read_audit_is_missing(tmp_path):
+    out = mechanical_qa.check_pre_brief(pre_brief_root(tmp_path, None), ["p"], "c")
+    assert out["checks"]["isolation"] == "HOLD" and out["status"] == "HOLD"
+    assert any("missing" in r for r in out["requested_repairs"])
+
+
+def test_pre_brief_isolation_fails_closed_when_the_read_audit_holds_an_error(tmp_path):
+    audit = {"schema_version": "worker-read-audit-v1", "error": "state db unavailable: x", "sessions": []}
+    out = mechanical_qa.check_pre_brief(pre_brief_root(tmp_path, audit), ["p"], "c")
+    assert out["checks"]["isolation"] == "HOLD" and out["status"] == "HOLD"
+    assert any("state db unavailable" in r for r in out["requested_repairs"])
+
+
+def test_pre_brief_isolation_fails_closed_when_a_lane_has_no_audit_row(tmp_path):
+    out = mechanical_qa.check_pre_brief(pre_brief_root(tmp_path, clean_audit("01-a")), ["p"], "c")
+    assert out["checks"]["isolation"] == "HOLD" and out["status"] == "HOLD"
+    assert any("02-b" in r and "no public lane row" in r for r in out["requested_repairs"])
+    # a row that is not marked as a public lane does not count either
+    audit = clean_audit("01-a", "02-b")
+    audit["sessions"][1]["public_lane"] = False
+    out = mechanical_qa.check_pre_brief(pre_brief_root(tmp_path / "x", audit), ["p"], "c")
+    assert out["checks"]["isolation"] == "HOLD"
+
+
+def test_pre_brief_isolation_names_the_worker_with_a_read_hit(tmp_path):
+    audit = clean_audit("01-a", "02-b")
+    audit["sessions"][1]["pattern_hits"] = {"session_db": 2}
+    out = mechanical_qa.check_pre_brief(pre_brief_root(tmp_path, audit), ["p"], "c")
+    assert out["checks"]["isolation"] == "HOLD"
+    assert "Lane 02-b had 2 session_db read hit(s) in worker-read-audit.json" in out["requested_repairs"]
 
 
 def test_archive_copies_and_verifies_every_file(tmp_path):
