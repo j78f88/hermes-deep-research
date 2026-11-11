@@ -71,7 +71,7 @@ If a matching accepted parent exists, reuse/update it rather than creating a dup
 Search durable/local source-intelligence roots when relevant:
 
 - `${RESEARCH_ARCHIVE_ROOT}/runs/`, with `RESEARCH_ARCHIVE_ROOT` defaulting to `~/.hermes/research-archive`; include an existing legacy `research/` subtree only when relevant;
-- `${SOURCE_INTELLIGENCE_ROOT}`, default `~/source-intelligence`;
+- `${SOURCE_INTELLIGENCE_ROOT}`, only when set (no default);
 - an explicitly configured YouTube ingestion corpus or other artifact store, when installed;
 - owning project corpus or repo ledgers when known.
 

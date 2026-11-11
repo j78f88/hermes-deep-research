@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic mechanical QA checks for the phased run driver (DR-897).
+"""Deterministic mechanical QA checks for the phased run driver.
 
 Replaces the four mechanical model review sessions (context_handoff, taxonomy_review,
 librarian_repair and final_assurance) plus the plain-brief presentation checks in

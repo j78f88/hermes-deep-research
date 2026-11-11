@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch a deep-research controller with a high step limit and one automatic resume (DR-876).
+"""Launch a deep-research controller with a high step limit and one automatic resume.
 
 Start command:
   hermes chat --oneshot -Q --ignore-rules --max-turns 500 --query-file <packet> --in <root> [passthrough]
@@ -30,13 +30,23 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 SCHEMA = "controller-launch-v1"
-DEFAULT_HERMES = "~/.local/bin/hermes"
+DEFAULT_HERMES = "hermes"
+
+
+def resolve_hermes(value: str) -> str:
+    """A bare name is looked up on PATH; a path has ~ expanded."""
+    if os.sep not in value and not value.startswith("~"):
+        return shutil.which(value) or value
+    return str(Path(value).expanduser())
+
+
 SESSION_RE = re.compile(r"^session_id: (\S+)\s*$", re.M)
 # Turn-end line: reason, session, and a trailing origin=<name> only on background forks.
 TURN_RE = re.compile(r"Turn ended: reason=(\S+)\s.*?\bsession=(\S+)(?:\s+origin=(\S+))?\s*$")
@@ -154,7 +164,7 @@ def run_with_one_resume(*, hermes: str, cmd: list[str], packet: Path, root: Path
                         schema: str = SCHEMA, extra: dict | None = None) -> dict:
     """Run cmd once; on a step-limit stop resume exactly once with only --resume, --query-file and --in.
 
-    Shared by this launcher and the phased run driver (DR-897). Logs go to <log_dir>/<log_stem>-run-N.log.
+    Shared by this launcher and the phased run driver. Logs go to <log_dir>/<log_stem>-run-N.log.
     Returns the final record, also written to record_path.
     """
     first_log = log_dir / f"{log_stem}-run-1.log"
@@ -182,7 +192,7 @@ def run_with_one_resume(*, hermes: str, cmd: list[str], packet: Path, root: Path
 def launch(args: argparse.Namespace) -> int:
     root = Path(args.root).expanduser().resolve()
     packet = Path(args.packet).expanduser().resolve()
-    hermes = str(Path(args.hermes_bin).expanduser())
+    hermes = resolve_hermes(args.hermes_bin)
     receipts = root / "receipts"
     record_path = Path(args.record).expanduser().resolve() if args.record else receipts / "controller-launch.json"
     agent_log = Path(args.agent_log).expanduser() if args.agent_log else default_agent_log()

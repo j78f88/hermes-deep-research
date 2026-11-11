@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Save a public web page as text for one lane and index it (deep-research kit, DR-897).
+"""Save a public web page as text for one lane and index it (deep-research kit).
 
 Usage: python3 workers/save_source.py LANE_ID SOURCE_ID URL [--direct-only]
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only GitHub API GET for public data, saved as a lane source (deep-research kit, DR-897).
+"""Read-only GitHub API GET for public data, saved as a lane source (deep-research kit).
 
 Usage: python3 workers/gh_get.py LANE_ID SOURCE_ID 'API_PATH'
 Examples: 'repos/OWNER/REPO'

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for verify_campaign_depth.py, init_campaign.py, campaign_controller.py and preseed.py (DR-897)."""
+"""Tests for verify_campaign_depth.py, init_campaign.py, campaign_controller.py and preseed.py."""
 from __future__ import annotations
 
 import hashlib

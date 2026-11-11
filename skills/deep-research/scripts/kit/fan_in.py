@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lane fan-in for the phased run driver (deep-research kit, DR-897).
+"""Lane fan-in for the phased run driver (deep-research kit).
 
 General versions of each campaign's control/fan_in.py: close the scaffold's two controller-phase
 lanes as not applicable research records, salvage markdown summaries when a checkpointed lane JSON

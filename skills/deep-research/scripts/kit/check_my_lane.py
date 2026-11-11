@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check ONE lane: its JSON against workers/lane-output-schema.json, and every saved quote (kit, DR-897).
+"""Check ONE lane: its JSON against workers/lane-output-schema.json, and every saved quote (kit).
 
 Usage: python3 workers/check_my_lane.py LANE_ID
 

@@ -14,7 +14,7 @@ CHECKS
 2. Quantities keep subject, unit, period and qualification.
 3. Absence claims are bounded to the sources retrieved. Gaps are labelled as gaps, not cited facts.
 4. Judgement is plainly labelled as judgement. No invented recommendation or decision.
-5. Privacy: no credentials, secrets, keys, session ids or private paths. The pack goes to a private vault.
+5. Privacy: no credentials, secrets, keys, session ids or private paths. The pack is exported for readers outside the campaign.
 6. Process records: no Action Register rows, QA or PASS/HOLD wording, provenance labels, or 40 to 64 character hex hashes.
    The frontmatter block (title, created, type, stage, source, author, credibility, captured_via: agent-deep-research,
    tags such as source/adapted, related, verified_count) is required vault metadata set by the scaffold. It is not a

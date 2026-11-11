@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch phase processes and wait on them once (deep-research kit, DR-897).
+"""Launch phase processes and wait on them once (deep-research kit).
 
 launch_unit() starts one process either as a transient systemd user unit (production) or as a
 detached child (tests, launcher "direct"). systemd-run starts units without the login PATH, so the

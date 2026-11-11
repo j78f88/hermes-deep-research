@@ -57,7 +57,7 @@ Resolve environment variables before use:
 - action register: `<campaign-root>/synthesis/action-register.md`;
 - verification: `<campaign-root>/receipts/`;
 - deliverables export: directly under `${DELIVERABLES_EXPORT_PATH}`, default `~/research-deliverables`;
-- optional source corpus: `${SOURCE_INTELLIGENCE_ROOT}`, default `~/source-intelligence`.
+- optional source corpus: `${SOURCE_INTELLIGENCE_ROOT}`, only when set (no default).
 
 Only the reference pack and plain brief are exportable. Declare their exact destination filenames in the manifest, not a dated path copied from another run.
 

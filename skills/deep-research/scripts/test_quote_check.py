@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for quote_check.py and acquire_youtube_apify.py (DR-897)."""
+"""Tests for quote_check.py and acquire_youtube_apify.py."""
 from __future__ import annotations
 
 import hashlib

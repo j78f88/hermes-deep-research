@@ -8,6 +8,6 @@ YOUR REVIEWER ID: write your real model id (${REVIEWER_MODEL}) as "reviewer". It
 TOOL-CALL BUDGET: at most ${BUDGET} tool calls. Write your receipt early as HOLD, then update it after each check, so a stop
 loses nothing. Compute file hashes with sha256sum. Every key ending in sha256 holds one 64-hex string; path-to-hash maps go
 under reviewed_files. Use scalar strings for verdicts. Passed observations go in findings, not requested_repairs.
-RULES: read-only except your one receipt file. Do not load skills. Do not read the knowledge-base vault, Linear, ~/.hermes outside
-this root, other campaigns, ~/work, ~/apps or /mnt/shared-storage. Do not edit any reader file, lane file or other receipt.
+RULES: read-only except your one receipt file. Do not load skills. Do not read the knowledge base, issue tracker, ~/.hermes outside
+this root, other campaigns, other folders in the home directory or mounted shares. Do not edit any reader file, lane file or other receipt.
 Run commands in the foreground; no heredocs.

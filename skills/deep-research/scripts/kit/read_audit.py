@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Body-free read audit of phase sessions from the Hermes session store (deep-research kit, DR-897).
+"""Body-free read audit of phase sessions from the Hermes session store (deep-research kit).
 
 For each named session (and its child sessions) it counts tool names and pattern hits in tool-call
 arguments: context brief, history, orchestration, vault, Linear, session store, skills tools, Hermes
@@ -35,7 +35,7 @@ def patterns(root: Path) -> dict[str, re.Pattern]:
         "session_db": re.compile(r"state\.db"),
         "hermes_home": re.compile(rf"/\.hermes/(?!{re.escape(str(root).split('/.hermes/', 1)[-1])}|cache/scratch)")
         if "/.hermes/" in str(root) else re.compile(r"/\.hermes/(?!cache/scratch)"),
-        "private_dirs": re.compile(r"/home/[^/]+/(work|apps)/|/mnt/shared-storage|\.claude/"),
+        "private_dirs": re.compile(r"/home/[^/]+/(work|apps)/|/mnt/|\.claude/"),
         "install_or_exec": re.compile(r"pip install|uv pip|uvx |git clone|npm (i|install)|npx |docker |podman "),
     }
 

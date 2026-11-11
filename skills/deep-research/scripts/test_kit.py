@@ -1,4 +1,4 @@
-"""Tests for the promoted per-campaign scripts in scripts/kit/ (DR-897). Offline."""
+"""Tests for the promoted per-campaign scripts in scripts/kit/. Offline."""
 import hashlib
 import json
 import sqlite3

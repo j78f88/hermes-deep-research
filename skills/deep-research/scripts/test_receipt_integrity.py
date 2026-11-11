@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for receipt_integrity.py and web_search_status.py (DR-897)."""
+"""Tests for receipt_integrity.py and web_search_status.py."""
 from __future__ import annotations
 
 import json

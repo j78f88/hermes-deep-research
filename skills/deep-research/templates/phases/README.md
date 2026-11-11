@@ -1,4 +1,4 @@
-# Phase packet templates (DR-897)
+# Phase packet templates
 
 `scripts/run_campaign.py` renders these with Python `string.Template` (`${NAME}` fields; a literal dollar is `$$`).
 Each rendered packet carries every path and rule its phase needs, so a phase session never reads the

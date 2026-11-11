@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for complete_campaign.py and export_deliverables.py (DR-897)."""
+"""Tests for complete_campaign.py and export_deliverables.py."""
 from __future__ import annotations
 
 import hashlib

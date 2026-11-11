@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phased run driver for a deep-research campaign (DR-897).
+"""Phased run driver for a deep-research campaign.
 
 A campaign runs as fixed phases. Plain code does every mechanical step; only synthesis, repairs and
 review decisions call a model, each as a fresh one-shot Hermes session with its own budget, toolsets and
@@ -20,7 +20,8 @@ Phases, in order:
   repairs          bounded rounds: model repair of the pack, then the failed reviews again
   plain_brief      plain_brief_rewrite.py --campaign-root (its own writer and editor calls)
   final_reviews    model: visual, taxonomy and librarian reviews, then final assurance
-  export           export_deliverables.py, scoped vault commit and push, archive archive (live, dry-run or skip)
+  export           export_deliverables.py, scoped git commit and push when the export root is a git repo,
+                   archive copy (live, dry-run or skip)
   completion       complete_campaign.py; its verdict is recorded exactly as printed
 
 Skip rule: a phase is skipped when it finished before, the outputs of every earlier phase (its inputs)
@@ -140,7 +141,7 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")[:48] or "campaign"
 
 
-# Mechanical steps that tests replace with stand-ins (they call models, the network or the vault).
+# Mechanical steps that tests replace with stand-ins (they call models, the network or the export root).
 def run_tool_preflight(root: Path, primary_source: str | None) -> dict:
     return kit("campaign_setup").tool_preflight(root, primary_source)
 
@@ -655,24 +656,16 @@ class Driver:
                 "gate_problems": gate.get("problems", [])[:10], "review_verdict": review.get("verdict") or review.get("status")}
 
     def write_tag_check(self) -> None:
-        tags_file = Path(self.req.get("export_root") or "./exports") / "_meta" / "tags.md"
-        known = set()
-        if tags_file.is_file():
-            known = set(re.findall(r"[A-Za-z0-9_-]+/[A-Za-z0-9_/-]+", tags_file.read_text(encoding="utf-8",
-                                                                                         errors="ignore")))
+        """Check that each reader's frontmatter tags are well-formed. No tag registry is used."""
         rows = {}
-        has_taxonomy = tags_file.is_file()
         for rel in ("internal/reference-pack.md", "internal/plain-brief.md"):
             text = (self.root / rel).read_text(encoding="utf-8") if (self.root / rel).is_file() else ""
             m = re.search(r"^tags:\s*\[([^\]]*)\]", text, re.M)
             tags = [t.strip().strip("'\"") for t in (m.group(1).split(",") if m else []) if t.strip()]
-            rows[rel] = {
-                tag: (tag in known if has_taxonomy else bool(re.fullmatch(r"[A-Za-z0-9_-]+/[A-Za-z0-9_/-]+", tag)))
-                for tag in tags
-            }
+            rows[rel] = {tag: bool(re.fullmatch(r"[A-Za-z0-9_-]+/[A-Za-z0-9_/-]+", tag)) for tag in tags}
         write_json(self.root / "qa" / "packets" / "tag-check.json",
-                   {"checked_at": now(), "taxonomy": "vault tags.md (exact tag lookup by the driver)",
-                    "taxonomy_found": tags_file.is_file(), "files": rows})
+                   {"checked_at": now(), "taxonomy": "tag format only (no tag registry)",
+                    "taxonomy_found": False, "files": rows})
 
     def do_final_reviews(self) -> dict:
         if not (self.root / "internal" / "plain-brief.md").is_file():

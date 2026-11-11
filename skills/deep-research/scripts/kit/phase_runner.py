@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run one model phase as a fresh one-shot Hermes session, with one resume on a step stop (DR-897).
+"""Run one model phase as a fresh one-shot Hermes session, with one resume on a step stop.
 
 The run driver launches this file inside a systemd-run --user unit (or a detached process in tests).
 It builds:
@@ -44,7 +44,7 @@ def run(args: argparse.Namespace) -> int:
     record_path = Path(args.record).resolve()
     log_dir = Path(args.log_dir).resolve()
     log_dir.mkdir(parents=True, exist_ok=True)
-    hermes = str(Path(args.hermes_bin).expanduser())
+    hermes = lc.resolve_hermes(args.hermes_bin)
     agent_log = Path(args.agent_log).expanduser() if args.agent_log else lc.default_agent_log()
     cmd = build_command(hermes=hermes, packet=packet, root=root, budget=args.budget, toolsets=args.toolsets,
                         provider=args.provider, model=args.model, reasoning=args.reasoning,
@@ -91,7 +91,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--provider", default="openrouter")
     p.add_argument("--reasoning")
     p.add_argument("--run-budget", type=int)
-    p.add_argument("--hermes-bin", default="~/.local/bin/hermes")
+    p.add_argument("--hermes-bin", default="hermes")
     p.add_argument("--agent-log")
     return p.parse_args(argv)
 

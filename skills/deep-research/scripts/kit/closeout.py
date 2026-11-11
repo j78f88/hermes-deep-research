@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
-"""Export and archive steps for the phased run driver (deep-research kit, DR-897).
+"""Export and archive steps for the phased run driver (deep-research kit).
 
-Modes: live (export_deliverables.py, scoped vault git add/commit/push of exactly the exported paths,
-remote readback, archive archive with rsync -rlt and a sha256 check of every file), dry-run
+Modes: live (export_deliverables.py; when the export root is a git work tree with an origin remote, a
+scoped git add/commit/push of exactly the exported paths and a remote readback; then an archive copy
+with rsync -rlt and a sha256 check of every file), dry-run
 (export_deliverables.py --dry-run, rsync -rltn listing only, no git), skip (nothing; reason recorded).
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent.parent
-ARCHIVE_BASE = Path.home() / ".hermes/work/deep-research-archive"
+# Same default as the skill docs: ${RESEARCH_ARCHIVE_ROOT:-~/.hermes/research-archive}/runs/YYYY-MM/<run-id>/
+ARCHIVE_BASE = Path(os.environ.get("RESEARCH_ARCHIVE_ROOT") or "~/.hermes/research-archive").expanduser() / "runs"
 
 
 def now() -> str:
@@ -36,7 +39,7 @@ def file_hashes(base: Path) -> dict[str, str]:
 
 
 def archive(root: Path, dest: Path, dry_run: bool) -> dict:
-    """rsync -rlt root/ dest/ (plain -a fails chgrp on the NAS), then sha256-verify every file."""
+    """rsync -rlt root/ dest/ (plain -a can fail chgrp on network shares), then sha256-verify every file."""
     record = {"destination": str(dest), "dry_run": dry_run}
     subprocess.run(["df", str(dest.parent if dest.parent.exists() else dest.parent.parent)], capture_output=True)
     if not dry_run:
@@ -51,6 +54,13 @@ def archive(root: Path, dest: Path, dry_run: bool) -> dict:
     mismatched = [k for k, v in src.items() if dst.get(k) != v]
     record.update(files=len(src), mismatched=mismatched[:50], status="verified" if not mismatched else "mismatch")
     return record
+
+
+def is_git_export_root(vault: Path) -> bool:
+    """True when the export root is a git work tree with an origin remote."""
+    inside = run(["git", "-C", str(vault), "rev-parse", "--is-inside-work-tree"], timeout=60)
+    origin = run(["git", "-C", str(vault), "remote", "get-url", "origin"], timeout=60)
+    return inside["rc"] == 0 and inside["stdout"].strip() == "true" and origin["rc"] == 0
 
 
 def export_commit(vault: Path, paths: list[Path], message: str) -> dict:
@@ -85,11 +95,15 @@ def export(root: Path, mode: str, reason: str | None, run_id: str) -> dict:
         ve = manifest.get("deliverable_exports", {})
         vault = Path(ve.get("export_root") or "./exports")
         paths = [Path(item["vault_path"]) for item in ve.get("exports", []) if item.get("vault_path")]
-        record["vault_git"] = export_commit(vault, paths, f"deep research: {run_id}") if paths else \
-            {"status": "failed", "reason": "export recorded no deliverable paths"}
+        if not paths:
+            record["vault_git"] = {"status": "failed", "reason": "export recorded no deliverable paths"}
+        elif not is_git_export_root(vault):
+            record["vault_git"] = {"status": "not_git", "reason": "export root is not a git work tree with an origin remote"}
+        else:
+            record["vault_git"] = export_commit(vault, paths, f"deep research: {run_id}")
     etv_rc = record["export_deliverables"]["rc"]
     etv_ok = etv_rc == 0 or (mode == "dry-run" and etv_rc == 2 and "suppressed" in record["export_deliverables"].get("stdout", ""))
     ok = etv_ok and record["archive"].get("status") in ("verified", "dry_run") and \
-        (mode != "live" or record.get("vault_git", {}).get("status") == "pushed")
+        (mode != "live" or record.get("vault_git", {}).get("status") in ("pushed", "not_git"))
     record["status"] = ("exported" if mode == "live" else "dry_run") if ok else "failed"
     return record

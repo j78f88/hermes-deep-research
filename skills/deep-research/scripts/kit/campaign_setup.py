@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mechanical campaign setup steps for the phased run driver (deep-research kit, DR-897).
+"""Mechanical campaign setup steps for the phased run driver (deep-research kit).
 
 General versions of what each campaign's control/setup_campaign.py used to rewrite by hand:
 scaffold with init_campaign.py, keep only the chosen lanes, record controls that do not apply to a
@@ -211,33 +211,28 @@ def write_owned_assets(root: Path, target: str, supplied: Path | None = None, ho
     keys = keywords(target)
     assets = []
     try:
-        proc = subprocess.run([str(home / ".local/bin/hermes"), "--version"], capture_output=True, text=True, timeout=30)
-        version = (proc.stdout or proc.stderr).strip().splitlines()[0] if proc.returncode == 0 else None
+        hermes_bin = shutil.which("hermes")
+        proc = subprocess.run([hermes_bin, "--version"], capture_output=True, text=True, timeout=30) if hermes_bin else None
+        version = (proc.stdout or proc.stderr).strip().splitlines()[0] if proc and proc.returncode == 0 else None
     except (OSError, subprocess.SubprocessError, IndexError):
         version = None
     if version:
         assets.append({"name": "Hermes Agent", "class": "platform", "evidence_level": "proven working",
-                       "facts": f"Installed at ~/.local/bin/hermes ({version})."})
-    for base in (home / ".hermes" / "shared-skills", home / ".hermes" / "skills"):
+                       "facts": f"Installed on PATH ({version})."})
+    hermes_home = Path(os.environ.get("HERMES_HOME") or home / ".hermes").expanduser()
+    for base in (hermes_home / "skills",):
         for skill in sorted(base.glob("**/SKILL.md")) if base.is_dir() else []:
             rel = skill.parent.relative_to(base).as_posix()
-            if "isolated-tenant" in rel.lower():
-                continue
             head = _frontmatter(skill)
             if any(k in head or k in rel.lower() for k in keys):
                 assets.append({"name": f"skill {rel}", "class": "skill", "evidence_level": "name only",
                                "facts": f"Hermes skill {rel} mentions the topic in its name or description."})
-    apps = home / "apps"
-    for app in sorted(apps.iterdir()) if apps.is_dir() else []:
-        if app.is_dir() and "isolated-tenant" not in app.name.lower() and any(k in app.name.lower() for k in keys):
-            assets.append({"name": f"app {app.name}", "class": "app", "evidence_level": "name only",
-                           "facts": f"Local app directory ~/apps/{app.name} matches the topic by name."})
     try:
         proc = subprocess.run(["systemctl", "--user", "list-units", "--type=service,timer", "--no-legend", "--plain"],
                               capture_output=True, text=True, timeout=30)
         for line in proc.stdout.splitlines():
             unit = line.split()[0] if line.split() else ""
-            if unit and "isolated-tenant" not in unit.lower() and any(k in unit.lower() for k in keys):
+            if unit and any(k in unit.lower() for k in keys):
                 assets.append({"name": f"user unit {unit}", "class": "running job", "evidence_level": "name only",
                                "facts": f"User systemd unit {unit} matches the topic by name."})
     except (OSError, subprocess.SubprocessError):
@@ -300,8 +295,8 @@ def tool_preflight(root: Path, probe_url: str | None = None, probe_repo: str = "
     for binary in ("curl", "pdftotext", "systemd-run"):
         tools.append({"tool": binary, "status": "PASS" if shutil.which(binary) else "UNAVAILABLE",
                       "detail": shutil.which(binary) or "not on PATH"})
-    hermes = Path.home() / ".local/bin/hermes"
-    tools.append({"tool": "hermes", "status": "PASS" if hermes.is_file() else "FAIL", "detail": str(hermes)})
+    hermes = shutil.which("hermes")
+    tools.append({"tool": "hermes", "status": "PASS" if hermes else "FAIL", "detail": hermes or "not on PATH"})
     try:
         import jsonschema  # noqa: F401
         tools.append({"tool": "jsonschema", "status": "PASS", "detail": "importable for check_my_lane.py"})

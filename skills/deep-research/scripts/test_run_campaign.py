@@ -1,4 +1,4 @@
-"""Tests for run_campaign.py, the phased run driver (DR-897). A fake hermes binary; no model call."""
+"""Tests for run_campaign.py, the phased run driver. A fake hermes binary; no model call."""
 import json
 import os
 import stat

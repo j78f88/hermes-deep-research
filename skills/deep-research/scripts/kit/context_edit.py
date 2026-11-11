@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Logged edits of context, history and manifest records (deep-research kit, DR-897).
+"""Logged edits of context, history and manifest records (deep-research kit).
 
 Every change saves the pre-change copy under context/edit-backups/ first and appends one line to
 context/edit-log.jsonl with before and after hashes. The log is append-only: an entry is written once

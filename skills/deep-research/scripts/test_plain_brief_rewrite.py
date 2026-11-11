@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for plain_brief_rewrite.py, research_qa_repair.py and report_purpose.py (DR-897)."""
+"""Tests for plain_brief_rewrite.py, research_qa_repair.py and report_purpose.py."""
 from __future__ import annotations
 
 import hashlib

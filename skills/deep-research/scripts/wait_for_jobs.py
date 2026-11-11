@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Block until background jobs finish or a timeout passes, in one call (DR-876).
+"""Block until background jobs finish or a timeout passes, in one call.
 
 A job is a PID (--pid N) or a marker file (--marker PATH) that the job writes when it is done.
 Use one call per background job instead of repeated sleep-and-check shell commands.

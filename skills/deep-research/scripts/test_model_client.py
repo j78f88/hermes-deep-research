@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for model_client.py and research_settings.py (DR-897)."""
+"""Tests for model_client.py and research_settings.py."""
 from __future__ import annotations
 
 import importlib

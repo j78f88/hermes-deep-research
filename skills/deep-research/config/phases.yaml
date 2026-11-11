@@ -1,4 +1,4 @@
-# Phased run driver settings (DR-897). Non-secret. Resolved by scripts/research_settings.py load_phases().
+# Phased run driver settings. Non-secret. Resolved by scripts/research_settings.py load_phases().
 #
 # budget: the phase session's --max-turns and the tool-call cap written into its packet.
 # role: the model role in model-routing.yaml whose model the phase uses. model_choice "fallback"
@@ -11,7 +11,7 @@
 schema_version: 1
 profiles:
   quality:
-    hermes_bin: ~/.local/bin/hermes
+    hermes_bin: hermes  # a bare name is looked up on PATH
     provider: openrouter
     launcher: systemd
     wait_timeout_seconds: 10800
