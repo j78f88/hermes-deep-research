@@ -292,7 +292,7 @@ def tool_preflight(root: Path, probe_url: str | None = None, probe_repo: str = "
         for f in stage.iterdir():
             shutil.copy2(f, samples / f.name)
         shutil.rmtree(stage, ignore_errors=True)
-    for binary in ("curl", "pdftotext", "systemd-run"):
+    for binary in ("curl", "pdftotext", "rsync", "systemd-run"):
         tools.append({"tool": binary, "status": "PASS" if shutil.which(binary) else "UNAVAILABLE",
                       "detail": shutil.which(binary) or "not on PATH"})
     hermes = shutil.which("hermes")

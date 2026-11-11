@@ -43,7 +43,9 @@ disclosures:
     deep_research_preflight and deep_research_init_campaign make no network calls.
     deep_research_check_completion is offline by default; offline=false or probe=true
     contacts OpenRouter. The bundled research scripts call OpenRouter and, for YouTube
-    transcripts, Apify. These scripts are not registered as tools.
+    transcripts, Apify. The full-mode driver also fetches cited pages directly with curl,
+    through the r.jina.ai reader, and from web.archive.org through that reader, and reads
+    public GitHub data with the gh CLI. These scripts are not registered as tools.
   credentials: >-
     OPENROUTER_API_KEY and APIFY_TOKEN resolve through agent.secret_scope.get_secret.
     The process environment is read only when Hermes is not importable. No .env file is

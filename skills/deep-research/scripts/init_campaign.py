@@ -19,19 +19,37 @@ import json
 import os
 import re
 import shutil
+import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Dict, List
 
+
+def _sibling(name: str):
+    """Load a module from this scripts folder for file-based callers (such as the Hermes plugin)
+    that do not put the folder on sys.path. Returns None when it cannot be loaded."""
+    spec = importlib.util.spec_from_file_location(f"_init_campaign_{name}", Path(__file__).with_name(f"{name}.py"))
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # dataclasses look their module up here
+    try:
+        spec.loader.exec_module(module)
+    except Exception:  # noqa: BLE001 - a broken sibling is reported by the gate below
+        sys.modules.pop(spec.name, None)
+        return None
+    return module
+
+
 try:
     from preseed import scaffold_preseed
-except ImportError:  # pragma: no cover - importlib callers can inject explicitly
-    scaffold_preseed = None
+except ImportError:  # file-based callers: load the sibling file directly
+    scaffold_preseed = getattr(_sibling("preseed"), "scaffold_preseed", None)
 
 try:
     from campaign_controller import initialize_campaign_state
-except ImportError:  # pragma: no cover - importlib callers can inject explicitly
-    initialize_campaign_state = None
+except ImportError:  # file-based callers: load the sibling file directly
+    initialize_campaign_state = getattr(_sibling("campaign_controller"), "initialize_campaign_state", None)
 
 UNIVERSAL_LANES = [
     ("01-steering-source-map", "Steering + source map", "steering"),

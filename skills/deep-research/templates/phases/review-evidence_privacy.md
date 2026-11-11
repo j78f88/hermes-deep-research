@@ -17,7 +17,7 @@ CHECKS
 5. Privacy: no credentials, secrets, keys, session ids or private paths. The pack is exported for readers outside the campaign.
 6. Process records: no Action Register rows, QA or PASS/HOLD wording, provenance labels, or 40 to 64 character hex hashes.
    The frontmatter block (title, created, type, stage, source, author, credibility, captured_via: agent-deep-research,
-   tags such as source/adapted, related, verified_count) is required vault metadata set by the scaffold. It is not a
+   tags such as source/adapted, related, verified_count) is required reader frontmatter set by the scaffold. It is not a
    process record; do not ask to change it.
 7. Exhibits: the pack has at least three exhibits matching synthesis/visual-exhibits.json. Each ledger entry's anchor
    appears in the pack, its type matches what the pack shows, its cells are supported by the cited codes, and it has

@@ -3,7 +3,7 @@
 
 Every change saves the pre-change copy under context/edit-backups/ first and appends one line to
 context/edit-log.jsonl with before and after hashes. The log is append-only: an entry is written once
-and never rewritten on a rerun (SKILL.md pitfalls 23e and 30). A write that changes nothing is not logged.
+and never rewritten on a rerun. A write that changes nothing is not logged.
 """
 from __future__ import annotations
 

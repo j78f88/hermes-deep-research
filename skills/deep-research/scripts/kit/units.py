@@ -3,7 +3,8 @@
 
 launch_unit() starts one process either as a transient systemd user unit (production) or as a
 detached child (tests, launcher "direct"). systemd-run starts units without the login PATH, so the
-unit always gets --setenv=PATH=$PATH --setenv=HOME=$HOME (SKILL.md pitfall 23f). wait_markers() is one
+unit always gets --setenv=PATH=$PATH --setenv=HOME=$HOME. API keys that are set in the driver's environment
+are passed by name only (--setenv=NAME), so their values never appear on a command line. wait_markers() is one
 blocking wait over every marker file, through wait_for_jobs.wait_for_jobs.
 
 session_tool_calls() reads a session's tool-call count (and its child sessions') from the Hermes
@@ -24,6 +25,10 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 
+# Secrets the phase sessions need. systemd-run copies a name-only --setenv value from its own environment.
+FORWARDED_SECRETS = ("OPENROUTER_API_KEY", "APIFY_TOKEN")
+
+
 def now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -31,6 +36,7 @@ def now() -> str:
 def systemd_command(unit: str, argv: list[str], env: dict[str, str] | None = None) -> list[str]:
     cmd = ["systemd-run", "--user", f"--unit={unit}", "--collect",
            f"--setenv=PATH={os.environ.get('PATH', '')}", f"--setenv=HOME={os.environ.get('HOME', '')}"]
+    cmd += [f"--setenv={k}" for k in FORWARDED_SECRETS if os.environ.get(k)]
     cmd += [f"--setenv={k}={v}" for k, v in sorted((env or {}).items())]
     return cmd + list(argv)
 
@@ -41,8 +47,11 @@ def launch_unit(*, unit: str, argv: list[str], launcher: str, env: dict[str, str
     record = {"unit": unit, "launcher": launcher, "argv": list(argv), "launched_at": now()}
     if launcher == "systemd":
         cmd = systemd_command(unit, argv, env)
-        proc = subprocess.run(cmd, capture_output=True, text=True)
-        record.update(command=cmd, rc=proc.returncode, output=(proc.stdout + proc.stderr).strip())
+        try:
+            proc = subprocess.run(cmd, capture_output=True, text=True)
+            record.update(command=cmd, rc=proc.returncode, output=(proc.stdout + proc.stderr).strip())
+        except OSError as exc:  # systemd-run missing: use --launcher direct
+            record.update(command=cmd, rc=127, output=f"{exc}; use --launcher direct")
     elif launcher == "direct":
         child_env = {**os.environ, **(env or {})}
         try:

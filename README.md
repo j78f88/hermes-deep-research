@@ -15,6 +15,7 @@ All modes retain source text, file hashes and verbatim quotes. A quote matching 
 ## Requirements
 
 - Python 3.11 or later and Git.
+- For full mode: `hermes` on `PATH`, `curl`, `rsync`, and `systemd-run --user` (or pass `--launcher direct`). `pdftotext` and the `gh` CLI are optional. Detached runs pass `OPENROUTER_API_KEY` and `APIFY_TOKEN` to their units by name, so export them in the shell that starts the driver.
 - [Hermes Agent](https://hermes-agent.nousresearch.com/docs) for live workers, search and session records.
 - Configured model access. Full-mode writing and provider verification use OpenRouter.
 - Optional integrations for issue tracking, diagrams and guarded acquisition. Local deliverables export uses the bundled exporter.
@@ -48,7 +49,7 @@ This repository is a native Hermes plugin (`plugin.yaml` and `__init__.py`). On 
   - `deep_research_check_completion` — run the deterministic completion and quote-integrity check on a campaign root
 - **Slash command:** `/deep-research`, with `preflight`, `estimate`, `init`, `check` and `help`. See [Slash command help](#slash-command-help).
 
-**Disclosure:** Paid model calls and online receipt verification connect to OpenRouter (`https://openrouter.ai/api/v1/...`) using `OPENROUTER_API_KEY`. Optional YouTube transcript acquisition (`acquire_youtube_apify.py`) connects to Apify (`https://api.apify.com/v2/...`) using `APIFY_TOKEN`. `OPENROUTER_API_KEY` is declared under `requires_env` and `APIFY_TOKEN` under `optional_env` in `plugin.yaml`. Both resolve through `agent.secret_scope.get_secret`. `os.environ` is read only when Hermes is not importable, so one profile never sees another profile's key. `.env` files are never opened directly.
+**Disclosure:** Paid model calls and online receipt verification connect to OpenRouter (`https://openrouter.ai/api/v1/...`) using `OPENROUTER_API_KEY`. Optional YouTube transcript acquisition (`acquire_youtube_apify.py`) connects to Apify (`https://api.apify.com/v2/...`) using `APIFY_TOKEN`. The full-mode driver saves cited pages with `curl`: directly, through the `https://r.jina.ai/` reader, and from `web.archive.org` through that reader. It reads public GitHub data with the `gh` CLI. Each cited URL is therefore sent to those services. `OPENROUTER_API_KEY` is declared under `requires_env` and `APIFY_TOKEN` under `optional_env` in `plugin.yaml`. Both resolve through `agent.secret_scope.get_secret`. `os.environ` is read only when Hermes is not importable, so one profile never sees another profile's key. `.env` files are never opened directly.
 
 **Storage:** the tools write only under `plugin_data_dir("hermes-deep-research")/campaigns`. A `campaign_root` argument must resolve inside that folder (symlinks included), and the folder itself is refused. Campaigns made elsewhere with the bundled scripts can still be checked with the scripts directly.
 
@@ -110,7 +111,7 @@ Put model and execution choices in each skill's `config/` files or supported run
 
 ## Start a full campaign
 
-This command creates local files only. It does not search, call models, publish notes or create tickets.
+To create the campaign files only, with no search, model call or export:
 
 ```bash
 python3 skills/deep-research/scripts/init_campaign.py \
@@ -120,7 +121,18 @@ python3 skills/deep-research/scripts/init_campaign.py \
   --no-deliverable-export
 ```
 
-Follow the generated worker instructions and the full skill's review sequence. Complete research only after its completion checker returns `PASS`. Offline completion can return `HOLD`, never online publication approval.
+To run a whole campaign, use the phased driver. It scaffolds the folder, runs the lanes, synthesis, reviews and plain brief, and ends with the completion check. Live runs call models and search and may incur charges.
+
+```bash
+python3 skills/deep-research/scripts/run_campaign.py start \
+  --root "$HOME/.hermes/work/example-research" \
+  --question "Example research question" \
+  --target "Example research question" \
+  --export dry-run --export-reason "first run" --detach
+python3 skills/deep-research/scripts/run_campaign.py status --root "$HOME/.hermes/work/example-research"
+```
+
+Add `--launcher direct` where `systemd-run --user` is not available. Complete research only after the completion checker returns `PASS`. Offline completion can return `HOLD`, never online publication approval.
 
 ## Run fast mode
 

@@ -26,7 +26,10 @@ def now() -> str:
 
 
 def run(cmd: list[str], timeout: int = 600, cwd: Path | None = None) -> dict:
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
+    except OSError as exc:  # for example rsync or git not installed
+        return {"command": cmd, "rc": 127, "stdout": "", "stderr": str(exc)}
     return {"command": cmd, "rc": proc.returncode, "stdout": proc.stdout[-4000:], "stderr": proc.stderr[-2000:]}
 
 
@@ -41,7 +44,6 @@ def file_hashes(base: Path) -> dict[str, str]:
 def archive(root: Path, dest: Path, dry_run: bool) -> dict:
     """rsync -rlt root/ dest/ (plain -a can fail chgrp on network shares), then sha256-verify every file."""
     record = {"destination": str(dest), "dry_run": dry_run}
-    subprocess.run(["df", str(dest.parent if dest.parent.exists() else dest.parent.parent)], capture_output=True)
     if not dry_run:
         dest.mkdir(parents=True, exist_ok=True)
     flags = "-rltn" if dry_run else "-rlt"
@@ -64,16 +66,17 @@ def is_git_export_root(vault: Path) -> bool:
 
 
 def export_commit(vault: Path, paths: list[Path], message: str) -> dict:
-    """Commit and push exactly the exported paths, then compare the remote main with the local HEAD."""
+    """Commit and push exactly the exported paths, then compare the remote branch with the local HEAD."""
     rels = [str(p.relative_to(vault)) for p in paths]
     steps = [run(["git", "-C", str(vault), "fetch", "origin"], timeout=300),
              run(["git", "-C", str(vault), "add", "--", *rels]),
              run(["git", "-C", str(vault), "commit", "-m", message, "--", *rels])]
     if steps[-1]["rc"] != 0:
         return {"status": "failed", "steps": steps}
-    steps.append(run(["git", "-C", str(vault), "push", "origin", "HEAD:main"], timeout=300))
+    branch = run(["git", "-C", str(vault), "rev-parse", "--abbrev-ref", "HEAD"])["stdout"].strip() or "main"
+    steps.append(run(["git", "-C", str(vault), "push", "origin", f"HEAD:{branch}"], timeout=300))
     head = run(["git", "-C", str(vault), "rev-parse", "HEAD"])["stdout"].strip()
-    remote = run(["git", "-C", str(vault), "ls-remote", "origin", "main"], timeout=300)["stdout"].split()
+    remote = run(["git", "-C", str(vault), "ls-remote", "origin", f"refs/heads/{branch}"], timeout=300)["stdout"].split()
     ok = steps[-1]["rc"] == 0 and remote[:1] == [head]
     return {"status": "pushed" if ok else "failed", "commit": head, "remote_main": remote[:1], "paths": rels,
             "steps": steps}
@@ -93,8 +96,10 @@ def export(root: Path, mode: str, reason: str | None, run_id: str) -> dict:
     if mode == "live" and record["export_deliverables"]["rc"] == 0:
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
         ve = manifest.get("deliverable_exports", {})
-        vault = Path(ve.get("export_root") or "./exports")
-        paths = [Path(item["vault_path"]) for item in ve.get("exports", []) if item.get("vault_path")]
+        vault = Path(ve.get("export_root") or os.environ.get("DELIVERABLES_EXPORT_PATH", "~/research-deliverables")).expanduser()
+        # export_deliverables.py records each copied file as export_path (older manifests: vault_path).
+        paths = [Path(item.get("export_path") or item["vault_path"]) for item in ve.get("exports", [])
+                 if item.get("export_path") or item.get("vault_path")]
         if not paths:
             record["vault_git"] = {"status": "failed", "reason": "export recorded no deliverable paths"}
         elif not is_git_export_root(vault):

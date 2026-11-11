@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Run one model phase as a fresh one-shot Hermes session, with one resume on a step stop.
+"""Run one model phase as a fresh one-shot Hermes session.
 
 The run driver launches this file inside a systemd-run --user unit (or a detached process in tests).
 It builds:
   hermes chat --oneshot -Q --ignore-rules --max-turns <budget> -t <toolsets> --query-file <abs packet>
               --in <root> --provider <p> -m <model> [--reasoning <r>] [--run-budget <s>]
-It never passes --source. On a step-limit stop it resumes once with only --resume <id>, --query-file and
---in, using launch_controller.run_with_one_resume. A second step stop is recorded, not resumed.
+It never passes --source. A step-limit stop is recorded as step_limit_reached and the phase fails;
+the driver then stops with a clear state, and `run_campaign.py resume` reruns the phase.
 
 The record goes to --record and a marker file (--marker) is always written last, holding the exit
 code, so the driver can wait on every phase with one blocking wait_for_jobs call.

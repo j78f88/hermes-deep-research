@@ -14,7 +14,7 @@ The existing brief editor judges every current and retained finding. There is no
 S=/absolute/path/to/deep-research/scripts  # installed skill, not a private shared checkout
 ROOT=/absolute/path/to/campaign
 python3 "$S/plain_brief_rewrite.py" --campaign-root "$ROOT"
-python3 "$S/run_publication_reviews.py" --campaign-root "$ROOT" --preflight-only
+python3 "$S/run_campaign.py" resume --root "$ROOT" --from final_reviews --stop-after final_reviews
 python3 "$S/verify_campaign_depth.py" --campaign-root "$ROOT" --mode true_deep_research --json
 python3 "$S/complete_campaign.py" --campaign-root "$ROOT"
 python3 "$S/export_deliverables.py" --campaign-root "$ROOT" --dry-run

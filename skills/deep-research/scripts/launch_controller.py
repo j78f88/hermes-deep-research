@@ -16,7 +16,7 @@ How the launcher knows what happened (Hermes source, read-only):
   tag their turn ends with " origin=<name>" (turn_finalizer.py:376-391). The launcher ignores those lines and
   resumes only when the controller's last foreground turn end for the session is max_iterations_reached.
 
-Resume (pitfall 30a): `--resume` refuses changed policy flags (hermes_cli/gateway_chat.py:22,
+Resume: `--resume` refuses changed policy flags (hermes_cli/gateway_chat.py:22,
 :249), so the resume carries only --resume, --query-file and --in plus the output-mode flags
 --oneshot and -Q, which are not policy flags. It runs once. A second step stop is only recorded.
 Any other failure is recorded and not resumed. The launcher never passes --source.

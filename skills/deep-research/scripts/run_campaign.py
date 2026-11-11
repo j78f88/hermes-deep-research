@@ -12,7 +12,7 @@ packet (templates/phases/). No session carries the whole campaign, so none needs
 Phases, in order:
   setup            init_campaign.py, chosen lanes, controls that do not apply (with reasons), owned assets,
                    tool preflight, worker kit and lane briefs
-  lanes            public lane workers under systemd-run --user, one blocking wait, per-lane quote check,
+  lanes            public lane workers (systemd-run --user, or --launcher direct), one blocking wait, per-lane quote check,
                    fan-in into campaign_state.json, quote_check.py --write, body-free read audit
   context_release  campaign_controller.record_context_release, logged propagation, citations.json
   synthesis        model: the reference pack and exhibit ledger; then fact_grades_report.py --write
@@ -26,8 +26,8 @@ Phases, in order:
 
 Skip rule: a phase is skipped when it finished before, the outputs of every earlier phase (its inputs)
 are unchanged, and its own outputs still match the hashes the driver last recorded. A phase whose model
-session stops for steps resumes once (launch_controller.run_with_one_resume); a second stop, or any other
-failure, stops the run with a clear state. Each driver run is one append-only run_state_machine segment.
+session stops for steps, or fails in any other way, stops the run with a clear state; `resume` reruns it.
+Each driver run is one append-only run_state_machine segment.
 """
 from __future__ import annotations
 
@@ -926,6 +926,11 @@ def cmd_resume(args) -> int:
             if s.get("tool_calls") is not None and s.get("budget"):
                 s["within_budget"] = s["tool_calls"] <= s["budget"] * (1 + int(s.get("resume_count") or 0))
         write_json(root / STATE_REL, state)
+    if args.launcher:
+        state = read_json(root / STATE_REL)
+        if state:
+            state.setdefault("overrides", {})["launcher"] = args.launcher
+            write_json(root / STATE_REL, state)
     if args.detach:
         return detach(root, args)
     return execute(root, args.from_phase, args.stop_after)

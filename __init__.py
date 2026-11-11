@@ -10,6 +10,8 @@ import io
 import json
 import os
 import re
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -215,6 +217,8 @@ def _json_tool(tool: str):
                 return json.dumps(handler(args))
             except Exception as exc:  # noqa: BLE001 - tool contract: always return JSON
                 return json.dumps(_error_payload(tool, exc))
+            except SystemExit as exc:  # a bundled script called sys.exit / raise SystemExit
+                return json.dumps(_error_payload(tool, RuntimeError(f"script exited: {exc.code}")))
 
         return wrapped
 
@@ -459,6 +463,36 @@ def deep_research_init_campaign(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _run_completion_check(root_path: Path, *, offline: bool, probe: bool) -> dict[str, Any]:
+    """Run scripts/complete_campaign.py in a Python child process and return its JSON result.
+
+    The verifier imports its sibling scripts by name, so it runs as a script (its folder is then
+    first on the child's import path) instead of being loaded into the Hermes process.
+    """
+    cmd = [sys.executable, str(DEEP_RESEARCH_SCRIPTS / "complete_campaign.py"),
+           "--campaign-root", str(root_path), "--no-relaunch", "--no-write"]
+    if offline:
+        cmd.append("--offline")
+    if probe:
+        cmd.append("--probe")
+    env = dict(os.environ)
+    env.pop("OPENROUTER_API_KEY", None)
+    if not offline or probe:
+        key = _get_secret("OPENROUTER_API_KEY")
+        if key:
+            env["OPENROUTER_API_KEY"] = key
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, cwd=str(root_path), env=env)
+    start = proc.stdout.find("{")
+    try:
+        result = json.loads(proc.stdout[start:]) if start >= 0 else None
+    except json.JSONDecodeError:
+        result = None
+    if not isinstance(result, dict) or "status" not in result:
+        detail = (proc.stderr or proc.stdout).strip()[-500:]
+        raise RuntimeError(f"completion check exited with code {proc.returncode}: {detail}")
+    return result
+
+
 @_json_tool("deep_research_check_completion")
 def deep_research_check_completion(args: dict[str, Any]) -> dict[str, Any]:
     """Tool handler: run completion, receipt-integrity, and saved-quote checks on a campaign root."""
@@ -474,14 +508,7 @@ def deep_research_check_completion(args: dict[str, Any]) -> dict[str, Any]:
     if not root_path.is_dir() or not manifest_path.is_file():
         raise FileNotFoundError(f"Campaign manifest not found at {manifest_path}")
 
-    cc = _load_script_module("complete_campaign")
-    result = cc.evaluate(
-        root_path,
-        online=not offline,
-        probe=probe,
-        homes=[],
-        pin_checker=False,
-    )
+    result = _run_completion_check(root_path, offline=offline, probe=probe)
 
     if write_receipt:
         out_file = root_path / "receipts" / "completion.json"

@@ -229,12 +229,12 @@ def check_post_brief(root: Path, producers: list[str], controller: str, verifier
         fm_repairs.append(f"allowlist {allowlist} != {[pack_rel, brief_rel]}")
 
     links_ok = not any("markdown link" in r for r in fm_repairs) and "[[" in pack_text
-    robin_ok = routing_ok and links_ok and not invalid_tags and not fm_repairs
+    taxonomy_ok = routing_ok and links_ok and not invalid_tags and not fm_repairs
 
-    robin_receipt = {
+    taxonomy_receipt = {
         "schema_version": "deep-research-qa-receipt-v1",
         "name": "taxonomy_review",
-        "status": "PASS" if robin_ok else "HOLD",
+        "status": "PASS" if taxonomy_ok else "HOLD",
         "reviewer": REVIEWER_ID,
         "producers": list(producers),
         "controller": controller,
@@ -249,12 +249,12 @@ def check_post_brief(root: Path, producers: list[str], controller: str, verifier
         "requested_repairs": fm_repairs,
         "reviewed_at": now(),
     }
-    write_json(root / "qa" / "taxonomy-review.json", robin_receipt)
+    write_json(root / "qa" / "taxonomy-review.json", taxonomy_receipt)
 
     librarian_receipt = {
         "schema_version": "deep-research-qa-receipt-v1",
         "name": "librarian_repair",
-        "status": "PASS" if robin_ok else "HOLD",
+        "status": "PASS" if taxonomy_ok else "HOLD",
         "reviewer": REVIEWER_ID,
         "producers": list(producers),
         "controller": controller,
@@ -322,7 +322,7 @@ def check_post_brief(root: Path, producers: list[str], controller: str, verifier
     pb_ok = pb_review.get("status") == "PASS" and pb_review.get("editor_verdict") == "PASS"
     ev_ok = ev_review.get("status") == "PASS" and ev_review.get("reference_pack_sha256") == pack_sha
     qc_ok = str(qc.get("verdict") or qc.get("status") or "").upper() == "PASS"
-    all_ok = pre["status"] == "PASS" and robin_ok and visual_ok and pb_ok and ev_ok and qc_ok
+    all_ok = pre["status"] == "PASS" and taxonomy_ok and visual_ok and pb_ok and ev_ok and qc_ok
 
     final_repairs = []
     if not ev_ok:
@@ -346,7 +346,7 @@ def check_post_brief(root: Path, producers: list[str], controller: str, verifier
         "reference_pack_sha256": pack_sha,
         "plain_brief_sha256": brief_sha,
         "checks": [
-            {"name": "required_receipts", "verdict": "PASS" if (pre["status"] == "PASS" and robin_ok and visual_ok and ev_ok) else "HOLD", "basis": "Mechanical and model review receipts checked."},
+            {"name": "required_receipts", "verdict": "PASS" if (pre["status"] == "PASS" and taxonomy_ok and visual_ok and ev_ok) else "HOLD", "basis": "Mechanical and model review receipts checked."},
             {"name": "plain_brief_review", "verdict": "PASS" if pb_ok else "FAIL", "basis": "Plain brief review record checked."},
             {"name": "quote_check", "verdict": "PASS" if qc_ok else "FAIL", "basis": "Saved quotes verified."},
             {"name": "costs_and_owner_gates", "verdict": "PASS", "basis": "Session costs recorded in driver-state.json; no unapproved owner-gated mutation."},
@@ -367,7 +367,7 @@ def check_post_brief(root: Path, producers: list[str], controller: str, verifier
         "plain_brief_sha256": brief_sha,
         "receipts": {
             "context_handoff": pre["status"],
-            "taxonomy_review": robin_receipt["status"],
+            "taxonomy_review": taxonomy_receipt["status"],
             "librarian_repair": librarian_receipt["status"],
             "visual": visual_receipt["status"],
             "final_assurance": final_receipt["status"],
@@ -377,7 +377,7 @@ def check_post_brief(root: Path, producers: list[str], controller: str, verifier
     })
     return {
         "context_handoff": pre["status"],
-        "taxonomy_review": robin_receipt["status"],
+        "taxonomy_review": taxonomy_receipt["status"],
         "librarian_repair": librarian_receipt["status"],
         "visual": visual_receipt["status"],
         "final_assurance": final_receipt["status"],

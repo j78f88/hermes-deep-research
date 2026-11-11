@@ -59,7 +59,7 @@ Run a new full campaign only if:
 
 Use these steps when the owner has approved replacing previously exported notes. A refresh does not waive evidence or review gates.
 
-- Run `run_publication_reviews.py --reset-assurance-stub` at the appropriate pre-export review step. It resets stale final-assurance hashes and rejects duplicate `## Sources` headings before pre-export QA.
+- Before pre-export QA, reset stale final-assurance hashes with `research_qa_repair.prepare_preexport_assurance_stub()` and check for a single `## Sources` heading with `validate_reference_sources_section()`. Both are functions in `scripts/research_qa_repair.py`.
 - Repair reader drafts with `plain_brief_rewrite.py --campaign-root <absolute-root> --corrected-draft <file> --corrected-draft-authors <authors.json>`. The current path preserves the corrected draft and makes no writer call; the existing independent editor reviews it. The authors packet binds `draft_sha256` and every contributing `writer_calls` record, including served fallbacks.
 - Recheck the current reference pack, editor-note dispositions, publication QA and completion before exporting. Do not hand-edit accepted reader bytes or copy old approvals onto a changed draft.
 - Run `export_deliverables.py --campaign-root <absolute-root> --overwrite-approved`. It archives prior exported deliverables into `orchestration/prior-deliverable-exports/` and records `manifest.deliverable_exports.prior_exports` before replacement.

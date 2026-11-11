@@ -421,6 +421,8 @@ def relaunch_outside_session(argv: list[str]) -> int | None:
     if not runner:
         return None
     env_args = [f"--setenv={k}={os.environ[k]}" for k in CLEAN_ENV_KEYS if k in os.environ and k != "OPENROUTER_API_KEY"]
+    if os.environ.get("OPENROUTER_API_KEY"):
+        env_args.append("--setenv=OPENROUTER_API_KEY")  # name only: systemd-run copies the value, ps never shows it
     env_args += ["--setenv=DEEP_RESEARCH_COMPLETION_LAUNCH=systemd-run",
                  f"--setenv=DEEP_RESEARCH_COMPLETION_REQUESTER={os.environ['HERMES_SESSION_ID']}"]
     cmd = [runner, "--user", "--wait", "--pipe", "--collect", "--quiet", f"--working-directory={Path.home()}", *env_args,

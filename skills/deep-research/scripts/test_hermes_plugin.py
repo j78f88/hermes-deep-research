@@ -518,3 +518,26 @@ def test_readme_visuals_exist_parse_and_stay_self_contained() -> None:
         body = path.read_text(encoding="utf-8")
         assert "<script" not in body and "href=" not in body and "@import" not in body
         assert body.count("http") == body.count("http://www.w3.org/2000/svg")
+
+
+def test_init_and_check_work_without_the_scripts_folder_on_sys_path(tmp_path: Path) -> None:
+    """Hermes loads __init__.py by file path, so pytest's sys.path must not hide sibling-import bugs."""
+    import subprocess
+
+    code = (
+        "import importlib.util, json, sys\n"
+        "spec = importlib.util.spec_from_file_location('hdr_probe', sys.argv[1], submodule_search_locations=[sys.argv[2]])\n"
+        "m = importlib.util.module_from_spec(spec); sys.modules[spec.name] = m; spec.loader.exec_module(m)\n"
+        "init = json.loads(m.deep_research_init_campaign({'target': 'Clean import path probe'}))\n"
+        "check = json.loads(m.deep_research_check_completion({'campaign_root': init.get('campaign_root', '')}))\n"
+        "print(json.dumps({'init': init.get('ok'), 'init_error': init.get('error'), 'status': check.get('status'), 'check_error': check.get('error')}))\n"
+    )
+    env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": str(tmp_path / "home"),
+           "RESEARCH_ARCHIVE_ROOT": str(tmp_path / "archive"), "PYTHONDONTWRITEBYTECODE": "1"}
+    (tmp_path / "home").mkdir()
+    proc = subprocess.run([sys.executable, "-c", code, str(REPO_ROOT / "__init__.py"), str(REPO_ROOT)],
+                          capture_output=True, text=True, timeout=600, cwd=tmp_path, env=env)
+    assert proc.returncode == 0, proc.stderr
+    out = json.loads(proc.stdout.strip().splitlines()[-1])
+    assert out["init"] is True, out
+    assert out["status"] in {"HOLD", "FAIL"}, out

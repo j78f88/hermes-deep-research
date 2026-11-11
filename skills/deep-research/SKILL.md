@@ -55,7 +55,7 @@ Every campaign runs exactly four checks inside the driver:
 2. **Mechanical isolation and reader lint (`kit/mechanical_qa.py`):**
    Checks public worker flags (`-t web,terminal,file`), no private reads, valid frontmatter, tags and links, and no tables or local `.md` links in the plain brief.
 3. **Single cross-vendor content review (`evidence_privacy`) and plain brief editor (`plain_brief_rewrite.py`):**
-   One cross-vendor review pass checks claims, numbers, exhibits and privacy against saved quotes. Round 0 blocking notes go straight to writer repair.
+   One cross-vendor review pass checks claims, numbers, exhibits and privacy against saved quotes. Blocking notes from that review go to the bounded repair rounds.
 4. **Provider call completion check (`complete_campaign.py`):**
    ```bash
    python3 scripts/complete_campaign.py --campaign-root "$HOME/.hermes/work/dr-<slug>"
