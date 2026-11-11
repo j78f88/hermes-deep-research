@@ -298,6 +298,13 @@ def tool_preflight(root: Path, probe_url: str | None = None, probe_repo: str = "
     hermes = shutil.which("hermes")
     tools.append({"tool": "hermes", "status": "PASS" if hermes else "FAIL", "detail": hermes or "not on PATH"})
     try:
+        import model_client
+        model_client._api_key()
+        tools.append({"tool": "OPENROUTER_API_KEY", "status": "PASS", "detail": "resolvable (value not recorded)"})
+    except Exception:  # noqa: BLE001 - any failure means the model phases cannot run
+        tools.append({"tool": "OPENROUTER_API_KEY", "status": "FAIL",
+                      "detail": "not resolvable; export it in the shell that starts the driver"})
+    try:
         import jsonschema  # noqa: F401
         tools.append({"tool": "jsonschema", "status": "PASS", "detail": "importable for check_my_lane.py"})
     except ImportError:

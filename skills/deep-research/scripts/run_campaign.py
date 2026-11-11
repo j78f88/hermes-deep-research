@@ -421,6 +421,8 @@ class Driver:
         steps.append(pre)
         if pre.get("status") == "failed":
             raise PhaseFailed(f"tool preflight failed: {pre.get('failed')}")
+        if (self.ov.get("launcher") or self.cfg["launcher"]) == "systemd" and not shutil.which("systemd-run"):
+            raise PhaseFailed("systemd-run is not on PATH; rerun with --launcher direct")
         spec = self.cfg["phases"]["lanes"]
         for lane in req["lanes"]:
             scaffold = read_json(root / "lanes" / f"{lane['id']}.json") or {}
