@@ -29,7 +29,8 @@ def patterns(root: Path) -> dict[str, re.Pattern]:
     return {
         "context_brief": re.compile(r"context-brief"),
         "history_dir": re.compile(r"/history/|history/relevant"),
-        "orchestration_dir": re.compile(r"orchestration/"),
+        "orchestration_dir": re.compile(rf"{re.escape(str(root))}/orchestration/|(?<![\w/-])orchestration/"
+                                       r"|(?<![\w/.-])\.{1,2}/orchestration/"),
         "vault": re.compile(r"private-knowledge-base"),
         "linear": re.compile(r"linear\.app|LINEAR_API", re.I),
         "session_db": re.compile(r"state\.db"),

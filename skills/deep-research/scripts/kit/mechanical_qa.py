@@ -17,7 +17,7 @@ from pathlib import Path
 REVIEWER_ID = "deterministic/mechanical_qa"
 REQUIRED_FM_KEYS = {"title", "created", "type", "stage", "source", "author", "captured_via", "tags"}
 AUDIT_CATEGORIES = (
-    "skills_tool", "context_brief", "history_dir", "vault", "linear",
+    "skills_tool", "context_brief", "history_dir", "orchestration_dir", "vault", "linear",
     "session_db", "hermes_home", "private_dirs", "other_lane_files",
 )
 

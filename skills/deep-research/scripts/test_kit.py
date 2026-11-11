@@ -257,6 +257,24 @@ def test_pre_brief_isolation_names_the_worker_with_a_read_hit(tmp_path):
     assert "Lane 02-b had 2 session_db read hit(s) in worker-read-audit.json" in out["requested_repairs"]
 
 
+def test_pre_brief_isolation_holds_on_an_orchestration_read(tmp_path):
+    audit = clean_audit("01-a", "02-b")
+    audit["sessions"][0]["pattern_hits"] = {"orchestration_dir": 1}
+    out = mechanical_qa.check_pre_brief(pre_brief_root(tmp_path, audit), ["p"], "c")
+    assert out["checks"]["isolation"] == "HOLD"
+    assert "Lane 01-a had 1 orchestration_dir read hit(s) in worker-read-audit.json" in out["requested_repairs"]
+
+
+def test_read_audit_orchestration_pattern_matches_campaign_paths_not_public_urls():
+    pat = read_audit.patterns(Path("/w/dr-x"))["orchestration_dir"]
+    for hit in ('{"path": "/w/dr-x/orchestration/logs/a.log"}', '{"path": "orchestration/driver.done"}',
+                '{"command": "cat ./orchestration/x"}', '{"command": "ls ../orchestration/"}'):
+        assert pat.search(hit), hit
+    for miss in ('{"url": "https://kubernetes.io/docs/concepts/orchestration/"}',
+                 '{"command": "python3 /w/dr-x/workers/save_source.py 01-a S01 \'https://x.io/container-orchestration/\'"}'):
+        assert not pat.search(miss), miss
+
+
 def test_archive_copies_and_verifies_every_file(tmp_path):
     src = tmp_path / "root"
     (src / "a").mkdir(parents=True)
