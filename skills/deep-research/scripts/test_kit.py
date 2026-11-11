@@ -97,6 +97,30 @@ def test_gh_get_refuses_private_account_paths():
         assert gh_get.path_problem(path, None), path
     assert gh_get.path_problem("users/someone/repos", "someone")
     assert gh_get.path_problem("repos/someone/private-thing", "someone")
+    for path in ("repos/../user", "repos/x/../../notifications", "repos/a/./b"):
+        assert gh_get.path_problem(path, None), path
+
+
+def test_gh_get_reads_repo_paths_only_after_a_public_visibility_check(monkeypatch, capsys):
+    calls = []
+
+    def fake(path):
+        calls.append(path)
+        body = json.dumps({"private": True}) if path == "repos/acme/secret" else json.dumps({"private": False})
+        return subprocess.CompletedProcess(["gh"], 0, stdout=body, stderr="")
+
+    monkeypatch.setattr(gh_get, "gh_get", fake)
+    monkeypatch.setattr(gh_get, "own_login", lambda: None)
+    assert gh_get.main(["L1", "S1", "repos/acme/secret/contents/README.md"]) == 2
+    assert "private" in capsys.readouterr().out
+    assert calls == ["repos/acme/secret"]
+
+    def missing(path):
+        raise FileNotFoundError("gh")
+
+    monkeypatch.setattr(gh_get, "gh_get", missing)
+    assert gh_get.main(["L1", "S1", "search/code?q=x"]) == 1
+    assert "gh api failed" in capsys.readouterr().out
 
 
 def test_save_source_writes_indexed_copy_and_refuses_reuse(tmp_path):

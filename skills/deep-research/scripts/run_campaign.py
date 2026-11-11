@@ -16,10 +16,11 @@ Phases, in order:
                    fan-in into campaign_state.json, quote_check.py --write, body-free read audit
   context_release  campaign_controller.record_context_release, logged propagation, citations.json
   synthesis        model: the reference pack and exhibit ledger; then fact_grades_report.py --write
-  qa_reviews       model: independent pre-brief reviews (evidence/privacy, context handoff)
+  qa_reviews       mechanical context-handoff check, then the model evidence/privacy review
   repairs          bounded rounds: model repair of the pack, then the failed reviews again
   plain_brief      plain_brief_rewrite.py --campaign-root (its own writer and editor calls)
-  final_reviews    model: visual, taxonomy and librarian reviews, then final assurance
+  final_reviews    mechanical taxonomy, librarian, visual and final-assurance checks (kit/mechanical_qa.py),
+                   then any configured model reviews
   export           export_deliverables.py, scoped git commit and push when the export root is a git repo,
                    archive copy (live, dry-run or skip)
   completion       complete_campaign.py; its verdict is recorded exactly as printed
@@ -998,7 +999,7 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--history-reason")
     s.add_argument("--export", default="live", choices=["live", "dry-run", "skip"])
     s.add_argument("--export-reason")
-    s.add_argument("--owned-assets", help="owned-assets markdown to use instead of the name-level scan")
+    s.add_argument("--owned-assets", help="owned-assets markdown that lanes may read (default: none; DEEP_RESEARCH_SCAN_OWNED_ASSETS=1 runs a name-level local scan instead)")
     s.add_argument("--preseed-dir", help="the four pre-seed artifacts (required for decision_assessment)")
     s.add_argument("--no-deliverable-export", action="store_true")
     s.add_argument("--config-dir")

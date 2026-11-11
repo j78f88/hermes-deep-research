@@ -198,8 +198,13 @@ def _frontmatter(path: Path) -> str:
         return ""
 
 
-def write_owned_assets(root: Path, target: str, supplied: Path | None = None, home: Path | None = None) -> dict:
-    """Factual owned-asset inventory. A supplied file wins; otherwise a name-level scan of skills, apps and units."""
+def write_owned_assets(root: Path, target: str, supplied: Path | None = None, home: Path | None = None,
+                       scan: bool | None = None) -> dict:
+    """Factual owned-asset inventory that public lanes may read.
+
+    A supplied file wins. The name-level scan of local Hermes skills and user units runs only when asked
+    for (scan=True or DEEP_RESEARCH_SCAN_OWNED_ASSETS=1); otherwise the inventory says none was supplied.
+    """
     out_md, out_json = root / "context" / "owned-assets.md", root / "context" / "owned-assets.json"
     if supplied is not None:
         text = supplied.read_text(encoding="utf-8")
@@ -207,6 +212,14 @@ def write_owned_assets(root: Path, target: str, supplied: Path | None = None, ho
         save_json(out_json, {"schema_version": "owned-assets-v1", "written_at": now(), "source": "supplied",
                              "markdown": "context/owned-assets.md"})
         return {"step": "owned_assets", "status": "done", "source": str(supplied)}
+    if scan is None:
+        scan = os.environ.get("DEEP_RESEARCH_SCAN_OWNED_ASSETS") == "1"
+    if not scan:
+        save_json(out_json, {"schema_version": "owned-assets-v1", "written_at": now(), "source": "none",
+                             "assets": [], "note": "No owned-assets list was supplied and the local scan is off."})
+        out_md.write_text("# Owned assets (facts only)\n\n- No owned-assets list was supplied. "
+                          "The local name-level scan is off.\n", encoding="utf-8")
+        return {"step": "owned_assets", "status": "done", "source": "none", "count": 0}
     home = home or Path.home()
     keys = keywords(target)
     assets = []

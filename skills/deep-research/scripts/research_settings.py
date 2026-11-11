@@ -207,7 +207,9 @@ PHASE_KINDS = {'lanes', 'synthesis', 'review', 'final_review', 'repair'}
 PHASE_FIELDS = {'budget', 'role', 'model_choice', 'toolsets', 'reasoning', 'run_budget_seconds'}
 PHASE_TOOLSETS = {'web', 'terminal', 'file', 'code_execution'}
 PUBLIC_LANE_TOOLSETS = {'web', 'terminal', 'file'}
-REVIEW_NAMES = {'evidence_privacy', 'context_handoff', 'visual', 'final_assurance'}
+# Model reviews need a templates/phases/review-<name>.md packet. The context-handoff, visual, taxonomy,
+# librarian and final-assurance checks are mechanical (kit/mechanical_qa.py) and are not configured here.
+REVIEW_NAMES = {'evidence_privacy'}
 PHASE_TOP = {'hermes_bin', 'provider', 'launcher', 'wait_timeout_seconds', 'repair_rounds',
              'plain_brief_timeout_seconds', 'completion_timeout_seconds', 'reviews', 'phases'}
 

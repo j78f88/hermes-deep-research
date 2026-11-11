@@ -9,7 +9,8 @@ Examples: 'repos/OWNER/REPO'
 
 Only GET through the gh CLI. Paths must start with repos/, search/, orgs/ or users/. It refuses
 the authenticated account's own paths (user, notifications, gists, org members, and users/<own login>),
-shell metacharacters and private repositories. Base64 file contents are decoded. Saves
+shell metacharacters and dot segments. A repos/OWNER/REPO path is read only after GitHub reports that
+repository as not private; search results drop private items. Base64 file contents are decoded. Saves
 workspace/sources/LANE_ID/SOURCE_ID.md under the campaign root and appends index.jsonl.
 """
 from __future__ import annotations
@@ -25,7 +26,8 @@ from pathlib import Path
 
 ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 ALLOWED_PREFIX = re.compile(r"^(repos|search|orgs|users)/")
-REFUSED = re.compile(r"(^user\b|^notifications|^gists|^orgs/[^/]+/members|[;|`$<>\\\s])", re.I)
+REFUSED = re.compile(r"(^user\b|^notifications|^gists|^orgs/[^/]+/members|[;|`$<>\\\s]|(^|/)\.\.?(/|$|\?))", re.I)
+REPO_PATH = re.compile(r"^repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)(/|$|\?)")
 
 
 def campaign_root() -> Path:
@@ -51,6 +53,23 @@ def path_problem(path: str, login: str | None) -> str | None:
     return None
 
 
+def gh_get(path: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["gh", "api", "--method", "GET", "-H", "Accept: application/vnd.github+json", path],
+                          capture_output=True, text=True, timeout=120)
+
+
+def repo_is_public(owner: str, repo: str) -> bool:
+    """True only when GitHub reports the repository as not private."""
+    proc = gh_get(f"repos/{owner}/{repo}")
+    if proc.returncode != 0:
+        return False
+    try:
+        data = json.loads(proc.stdout)
+    except ValueError:
+        return False
+    return isinstance(data, dict) and data.get("private") is False
+
+
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) != 3:
@@ -64,8 +83,15 @@ def main(argv: list[str] | None = None) -> int:
     if problem:
         print(json.dumps({"ok": False, "error": problem}))
         return 2
-    proc = subprocess.run(["gh", "api", "--method", "GET", "-H", "Accept: application/vnd.github+json", path],
-                          capture_output=True, text=True, timeout=120)
+    try:
+        repo = REPO_PATH.match(path)
+        if repo and not repo_is_public(repo.group(1), repo.group(2)):
+            print(json.dumps({"ok": False, "error": "repository is private or not visible; refused"}))
+            return 2
+        proc = gh_get(path)
+    except (OSError, subprocess.SubprocessError) as exc:  # gh not installed, or timed out
+        print(json.dumps({"ok": False, "error": f"gh api failed: {exc}"[:300]}))
+        return 1
     if proc.returncode != 0:
         print(json.dumps({"ok": False, "error": proc.stderr.strip()[:300]}))
         return 1

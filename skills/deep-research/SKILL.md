@@ -17,7 +17,7 @@ Use this skill when the owner explicitly asks for **deep research** on a complex
 ## Core Guarantees (Never Weaken)
 
 1. **Saved quotes:** Every cited claim maps to a saved source file and a verbatim quote verified by `scripts/quote_check.py`.
-2. **Public worker isolation:** Public research workers run with `-t web,terminal,file` only and no access to private context, a knowledge base or an issue tracker.
+2. **Public worker isolation:** Public research workers run with `-t web,terminal,file` only and no access to private context, a knowledge base or an issue tracker. The one local file they may read is `context/owned-assets.md`: the file you pass with `--owned-assets`, or a note that none was supplied. Set `DEEP_RESEARCH_SCAN_OWNED_ASSETS=1` to fill it instead with a name-level list of installed Hermes skills and user systemd units whose names match the topic.
 3. **Cross-vendor content review:** One model from a different vendor than the writer checks that claims, numbers, tables and the plain brief match the saved quotes.
 4. **Provider call verification:** `scripts/complete_campaign.py` verifies at OpenRouter that the writer and cross-vendor reviewer calls occurred.
 5. **Plain prose first:** The owner gets a short plain brief first (no tables in the brief), backed by the reference pack.

@@ -30,8 +30,11 @@ def campaign_root() -> Path:
 
 
 def curl(url: str, timeout: int) -> tuple[str, bytes]:
-    proc = subprocess.run(["curl", "-sL", "-m", str(timeout), "-A", "Mozilla/5.0", "-w", "\n__HTTP__%{http_code}", url],
-                          capture_output=True)
+    try:
+        proc = subprocess.run(["curl", "-sL", "-m", str(timeout), "-A", "Mozilla/5.0", "-w", "\n__HTTP__%{http_code}", url],
+                              capture_output=True)
+    except OSError:  # curl not installed
+        return "000", b""
     out = proc.stdout
     if b"\n__HTTP__" not in out:
         return "000", b""
@@ -55,7 +58,10 @@ def fetch(url: str, direct_only: bool = False) -> tuple[str | None, str, str]:
     code, body = curl(url, 60)
     if code == "200" and len(body) > 80:
         if body.startswith(b"%PDF"):
-            proc = subprocess.run(["pdftotext", "-", "-"], input=body, capture_output=True)
+            try:
+                proc = subprocess.run(["pdftotext", "-", "-"], input=body, capture_output=True)
+            except OSError:  # pdftotext is optional
+                return None, "", code
             return "direct-pdftotext", proc.stdout.decode("utf-8", "ignore"), code
         decoded = body.decode("utf-8", "ignore")
         return "direct", (strip_html(decoded) if "<html" in decoded[:2000].lower() else decoded), code
