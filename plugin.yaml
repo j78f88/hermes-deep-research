@@ -38,7 +38,8 @@ disclosures:
     included. Bundled skills, model-routing data and scripts are read-only.
   subprocesses: >-
     deep_research_check_completion runs the bundled verifier in a Python child process and
-    may run git against the campaign folder. The other tools start no child process.
+    may run git read-only (rev-parse, show) against this plugin's own checkout to pin the
+    checker code, and against $HERMES_AGENT_DIR when set. The other tools start no child process.
   network: >-
     deep_research_preflight and deep_research_init_campaign make no network calls.
     deep_research_check_completion is offline by default; offline=false or probe=true

@@ -38,7 +38,7 @@ python3 scripts/run_campaign.py start --detach \
   --lanes-file <lanes.json> --export live
 ```
 
-`--lanes-file` is a JSON list of `{"id": "<scaffold lane id>", "focus": "<what this lane must find>"}`. Without it, `--lanes` takes a comma list of lane ids, and with neither the driver runs the four default public lanes. Use `--export dry-run` or `--export skip` when the result must not reach the export root. Both need `--export-reason "<why>"`. `--purpose decision_assessment` also needs `--preseed-dir`.
+`--lanes-file` is a JSON list of `{"id": "<scaffold lane id>", "focus": "<what this lane must find>"}`. Without it, `--lanes` takes a comma list of lane ids, and with neither the driver runs the four default public lanes. The default lanes exist only for target types `idea` and `architecture` and for types the scaffold does not list, such as the default `technical_idea`. For any other target type, pass `--lanes` or `--lanes-file` with that type's scaffold lane ids. Use `--export dry-run` or `--export skip` when the result must not reach the export root. Both need `--export-reason "<why>"`. `--purpose decision_assessment` also needs `--preseed-dir`.
 
 `--detach` prints the wait and status commands. Wait with one blocking call on the printed `wait_for_jobs.py --marker <root>/orchestration/driver.done` command. Never loop sleep-and-check. Then report the verdict exactly as printed:
 
