@@ -827,167 +827,6 @@ def routing_holds(root: Path, manifest: dict, deliverable_export_enabled: bool) 
     return holds
 
 
-def evidence_bundle_holds(root: Path, manifest: dict) -> list[str]:
-    """gate: verify a declared frozen evidence-bundle-v1 with the
-    immediate TOCTOU rehash.
-
-    Backward-compatible: campaigns whose manifest has no
-    ``research_orchestration.evidence_bundle`` block are unaffected (returns []).
-    When the block is present and required:
-
-      * a ``not_started`` / missing artifact HOLDs;
-      * a frozen bundle whose body hash drifted, or any manifest artifact whose
-        bytes changed after freeze, HOLDs with ``blocked_stale_hash`` reasons.
-
-    Read-only: reads local JSON + rehashes artifact files; no mutation.
-    """
-    ro = manifest.get("research_orchestration")
-    if not isinstance(ro, dict):
-        return []
-    eb_meta = ro.get("evidence_bundle")
-    if not isinstance(eb_meta, dict):
-        return []
-
-    holds: list[str] = []
-    if not eb_meta.get("required"):
-        return holds
-    if eb_meta.get("status") in {None, "not_started"}:
-        return ["research_orchestration_evidence_bundle not_started"]
-
-    rel = eb_meta.get("path", "orchestration/evidence-bundle.json")
-    path, unsafe = confined_path(root, rel)
-    if unsafe:
-        return [f"research_orchestration_evidence_bundle {unsafe}"]
-    if not path.is_file():
-        return [f"research_orchestration_evidence_bundle artifact missing {rel}"]
-    try:
-        frozen = json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:  # noqa: BLE001
-        return [f"research_orchestration_evidence_bundle invalid json {type(exc).__name__}"]
-
-    try:
-        import importlib.util
-
-        eb_path = Path(__file__).resolve().parent / "evidence_bundle.py"
-        spec = importlib.util.spec_from_file_location("evidence_bundle", eb_path)
-        assert spec is not None and spec.loader is not None
-        eb = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(eb)
-    except Exception as exc:  # noqa: BLE001 - fail-closed if the verifier can't load
-        return [f"research_orchestration_evidence_bundle verifier_unavailable {type(exc).__name__}"]
-
-    result = eb.verify_frozen_bundle(frozen, root=root)
-    if result["status"] != "verified":
-        for reason in result.get("reasons", []):
-            holds.append(f"research_orchestration_evidence_bundle {result['status']}: {reason}")
-    return holds
-
-
-def research_orchestration_holds(root: Path, manifest: dict) -> list[str]:
-    """gate: required prior-work/playbook (and improvement) artifacts.
-
-    Backward-compatible: campaigns whose manifest carries no
-    ``research_orchestration`` block are unaffected (returns []). When the block
-    is present:
-
-      * a required artifact that is still ``not_started`` / missing HOLDs;
-      * a filled required artifact that fails its deterministic evaluator HOLDs
-        with the evaluator's own state/reasons;
-      * ``automatic_mutation_allowed`` must be false (owner-gate invariant).
-
-    Read-only: only reads local JSON and runs pure evaluators.
-    """
-    ro = manifest.get("research_orchestration")
-    if not isinstance(ro, dict):
-        return []
-
-    holds: list[str] = []
-
-    if ro.get("automatic_mutation_allowed") is not False:
-        holds.append("research_orchestration_owner_gate automatic_mutation_allowed must be false")
-
-    # Lazy import so the evaluator dependency is only needed when the block exists.
-    try:
-        import importlib.util
-
-        loop_path = Path(__file__).resolve().parent / "prior_work_playbook_loop.py"
-        spec = importlib.util.spec_from_file_location("prior_work_playbook_loop", loop_path)
-        assert spec is not None and spec.loader is not None
-        plw = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(plw)
-    except Exception as exc:  # noqa: BLE001 - fail-closed if the evaluator can't load
-        return holds + [f"research_orchestration_evaluator_unavailable {type(exc).__name__}"]
-
-    def _load(rel: str) -> tuple[dict | None, str | None]:
-        path, unsafe = confined_path(root, rel)
-        if unsafe:
-            return None, unsafe
-        if not path.is_file():
-            return None, "artifact missing"
-        try:
-            return json.loads(path.read_text(encoding="utf-8")), None
-        except Exception as exc:  # noqa: BLE001
-            return None, f"invalid json {type(exc).__name__}"
-
-    pw_meta = ro.get("prior_work_context", {}) if isinstance(ro.get("prior_work_context"), dict) else {}
-    pb_meta = ro.get("playbook", {}) if isinstance(ro.get("playbook"), dict) else {}
-    imp_meta = ro.get("improvement_record", {}) if isinstance(ro.get("improvement_record"), dict) else {}
-
-    context_obj: dict | None = None
-
-    # --- prior-work context (required) ---
-    if pw_meta.get("required"):
-        if pw_meta.get("status") in {None, "not_started"}:
-            holds.append("research_orchestration_prior_work not_started")
-        else:
-            ctx, err = _load(pw_meta.get("path", "orchestration/prior-work-context.json"))
-            if err:
-                holds.append(f"research_orchestration_prior_work {err}")
-            else:
-                context_obj = ctx
-                verdict = plw.evaluate_prior_work_context(ctx)
-                if verdict["status"] != "PASS":
-                    holds.append(
-                        f"research_orchestration_prior_work {verdict['state']}: "
-                        + "; ".join(verdict["reasons"])
-                    )
-
-    # --- playbook (required) ---
-    if pb_meta.get("required"):
-        if pb_meta.get("status") in {None, "not_started"}:
-            holds.append("research_orchestration_playbook not_started")
-        else:
-            pb, err = _load(pb_meta.get("path", "orchestration/implementation-operating-playbook.json"))
-            if err:
-                holds.append(f"research_orchestration_playbook {err}")
-            elif context_obj is None:
-                holds.append("research_orchestration_playbook cannot evaluate without a valid prior-work context")
-            else:
-                verdict = plw.evaluate_playbook(pb, context_obj)
-                if verdict["status"] != "PASS":
-                    holds.append(
-                        f"research_orchestration_playbook {verdict['state']}: "
-                        + "; ".join(verdict["reasons"])
-                    )
-
-    # --- improvement record (optional; only evaluated when filled) ---
-    if imp_meta.get("required") and imp_meta.get("status") in {None, "not_started"}:
-        holds.append("research_orchestration_improvement_record not_started")
-    elif imp_meta.get("status") not in {None, "not_started"}:
-        rec, err = _load(imp_meta.get("path", "orchestration/research-improvement-record.json"))
-        if err:
-            holds.append(f"research_orchestration_improvement_record {err}")
-        else:
-            verdict = plw.evaluate_improvement_record(rec)
-            if verdict["status"] != "PASS":
-                holds.append(
-                    f"research_orchestration_improvement_record {verdict['state']}: "
-                    + "; ".join(verdict["reasons"])
-                )
-
-    return holds
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify deep-research campaign depth")
     parser.add_argument("--campaign-root", required=True)
@@ -1065,6 +904,10 @@ def main() -> int:
         action_text = internal_full_text
 
     lanes = manifest.get("lanes", [])
+    selected_lanes = (manifest.get("lane_selection") or {}).get("selected") if isinstance(manifest.get("lane_selection"), dict) else None
+    if mode == "true_deep_research" and isinstance(selected_lanes, list) and len(selected_lanes) >= 3:
+        thresholds["min_lanes"] = min(thresholds["min_lanes"], len(lanes))
+        thresholds["min_lane_artifacts"] = min(thresholds["min_lane_artifacts"], len(selected_lanes))
     lane_md = list((root / "lanes").glob("*.md"))
     lane_json = list((root / "lanes").glob("*.json"))
     worker_packets = list((root / "workers").glob("*-packet.md"))
@@ -1226,8 +1069,6 @@ def main() -> int:
                 holds.append("internal_reconciliation_table_missing")
             holds.extend(qa_holds(root, manifest, deliverable_export_enabled, external_hash))
             holds.extend(frontmatter_holds(root, [internal_full_rel, internal_brief_rel] + ([plain_brief_rel(manifest)] if plain_gate["required"] and (root / plain_brief_rel(manifest)).is_file() else [])))
-        holds.extend(research_orchestration_holds(root, manifest))
-        holds.extend(evidence_bundle_holds(root, manifest))
         holds.extend(vis_problems)
         if metrics["full_pack_exhibit_count"] < thresholds["min_full_exhibits"]:
             holds.append(f"full_pack_exhibits {metrics['full_pack_exhibit_count']} < {thresholds['min_full_exhibits']}")

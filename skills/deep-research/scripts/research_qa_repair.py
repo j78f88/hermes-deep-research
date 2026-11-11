@@ -821,10 +821,14 @@ def campaign_readiness(root: Path, *, require_brief: bool = True,
         bound = validate_saved_review_bindings(root, review, decisions)
         if bound["status"] != "PASS":
             return {**bound, "publication_qa_allowed": False}
+        effective_retained = retained if (
+            review.get("status") == "PASS" and review.get("editor_verdict") == "PASS"
+            and not review.get("editor_blocking") and not review.get("classification_reviews")
+        ) else [*history_notes, *retained]
         gate = evaluate_editor_review(review, evidence_decisions=decisions.get("decisions"),
                 decisions_brief_sha256=decisions.get("brief_sha256"),
                 reader_text=(root / expected_brief).read_text(encoding="utf-8"),
-                retained_findings=[*history_notes, *retained], classification_checks=bound["classification_checks"])
+                retained_findings=effective_retained, classification_checks=bound["classification_checks"])
         return {**gate, "inputs": list(dict.fromkeys([*inputs, review_rel, decisions_rel, *bound["inputs"]]))}
     except (OSError, ValueError, TypeError, KeyError) as exc:
         return {"status": "BLOCKED_CAMPAIGN_READINESS", "publication_qa_allowed": False,

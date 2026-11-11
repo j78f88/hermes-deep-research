@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RED-first tests for ISSUE-569 append-only research run-state machine.
+"""RED-first tests for DR-569 append-only research run-state machine.
 
 Covers the versioned state enum, append-only transitions (no backward
 timestamps, correlation-id scoped, artifact-hash bound), retry lineage, and

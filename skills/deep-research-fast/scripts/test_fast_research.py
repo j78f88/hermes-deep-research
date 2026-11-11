@@ -96,3 +96,19 @@ def test_record_refresh_keeps_the_original_wall_time(tmp_path):
     again = refresh_record(fr)
     assert again["wall_seconds"] == rec["wall_seconds"]
     assert again["cost_usd"] == rec["cost_usd"]
+
+
+def test_deepest_end_to_end(tmp_path):
+    from deepest_research import DeepestResearch
+
+    fake = FakeHermes({"q1": ["https://example.invalid/shared"], "q3": ["https://example.invalid/linux"]})
+    fake.followups = [
+        {"question": "Which exact settings are needed?", "gap": "settings", "impact": 5},
+        {"question": "How are research costs recorded?", "gap": "costs", "impact": 3},
+    ]
+    fr = DeepestResearch(tmp_path, "How does deep research work?", run_id="deep", config=small_config(), **fake.hooks())
+    rec = fr.run()
+    assert rec["status"] == "completed", rec["error"]
+    assert rec["quote_check"] == "pass"
+    assert len(rec["branches"]) == 2
+    assert len(fr.store.child_runs("deep")) == 3

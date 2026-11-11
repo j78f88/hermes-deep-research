@@ -1,0 +1,60 @@
+# Phased run driver settings (DR-897). Non-secret. Resolved by scripts/research_settings.py load_phases().
+#
+# budget: the phase session's --max-turns and the tool-call cap written into its packet.
+# role: the model role in model-routing.yaml whose model the phase uses. model_choice "fallback"
+#   takes the role's first fallback model instead (used where a reviewer must differ from the
+#   plain-brief reviewer's model).
+# toolsets: the only Hermes toolsets the session gets (-t). Public lane workers get web,terminal,file,
+#   so no skills tool exists in their session.
+# run_budget_seconds: --run-budget for the session (wall clock).
+# These settings cannot switch off checks, change thresholds or authorise spend.
+schema_version: 1
+profiles:
+  quality:
+    hermes_bin: ~/.local/bin/hermes
+    provider: openrouter
+    launcher: systemd
+    wait_timeout_seconds: 10800
+    repair_rounds: 3  # evidence review samples afresh each round; budget three or four review rounds
+    plain_brief_timeout_seconds: 5400
+    completion_timeout_seconds: 3600
+    reviews:
+      pre_brief: [evidence_privacy]
+      post_brief: []
+      final: []
+    phases:
+      lanes:
+        budget: 120
+        role: evidence
+        model_choice: primary
+        toolsets: [web, terminal, file]
+        reasoning: high
+        run_budget_seconds: 4500
+      synthesis:
+        budget: 150
+        role: synthesis
+        model_choice: primary
+        toolsets: [terminal, file]
+        reasoning: high
+        run_budget_seconds: 4500
+      review:
+        budget: 80
+        role: reviewer
+        model_choice: primary
+        toolsets: [terminal, file]
+        reasoning: high
+        run_budget_seconds: 3600
+      final_review:
+        budget: 80
+        role: reviewer
+        model_choice: fallback
+        toolsets: [terminal, file]
+        reasoning: high
+        run_budget_seconds: 3600
+      repair:
+        budget: 80
+        role: synthesis
+        model_choice: primary
+        toolsets: [terminal, file]
+        reasoning: high
+        run_budget_seconds: 3600

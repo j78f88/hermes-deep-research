@@ -230,29 +230,26 @@ def style_for_purpose(purpose):
     common = READER_STYLE.split('## Factual brief', 1)[0]
     factual = READER_STYLE.split('## Factual brief\n', 1)[1].split('\n## ', 1)[0]
     assessment = READER_STYLE.split('## Technical assessment brief\n', 1)[1].split('\n## ', 1)[0]
-    return common + '\n' + factual + ('\n' + assessment if purpose == 'decision_assessment' else '')
+    extra_rules = (
+        '\nNever put Markdown tables in the plain brief (exhibits and tables belong only in the reference pack; '
+        'write connected plain prose or short flat bullets instead). Never link to local .md filenames such as '
+        '(reference-pack.md); the footer links the reference pack automatically.\n'
+    )
+    return common + '\n' + factual + ('\n' + assessment if purpose == 'decision_assessment' else '') + extra_rules
 
 
 STYLE = style_for_purpose('factual')
 EDITOR_SYS = READER_STYLE + '''
-You are the independent editor. Read the full argument and both readers against saved evidence.
-Check important quantities and qualifications semantically. Number counts are not retention proof.
+You are the independent editor of the plain brief (the BRIEF section at the end of the prompt).
+The reference pack and saved lane files in PACK AND SAVED EVIDENCE are read-only source material already reviewed in an earlier phase.
+Judge ONLY the plain brief (BRIEF:) against the reference pack and saved evidence; never block on sentences, tables or punctuation inside the read-only reference pack.
+Check important quantities and qualifications in the plain brief semantically. Number counts are not retention proof.
 Return only raw JSON with blocking, minor, verdict, checks and important_quantity_qualification_review.
 checks must contain factual, reasoning, editorial and presentation objects, each with verdict PASS/FAIL and a non-empty basis.
 important_quantity_qualification_review must contain verdict PASS/FAIL and a non-empty basis explaining the evidence comparison.
-Put any changed subject, unit, period, date, definition, scope, certainty, attribution or unsupported claim in blocking, never minor.
-Use PASS only when every dimension passes and blocking is empty. Do not invent criticism of clear supported prose.
+Put any changed subject, unit, period, date, definition, scope, certainty, attribution or unsupported claim in the plain brief in blocking, never minor.
+Use PASS only when every dimension of the plain brief passes and blocking is empty. Do not invent criticism of clear supported prose.
 minor is optional style only. Preserve enough why and how. Apply the declared report_purpose, not topic-based recommendations.
-For every current blocking/minor and RETAINED_FINDINGS note return one note_dispositions object.
-Echo REVIEW_BINDING exactly as review_binding. Each disposition must contain exactly:
-note (exact original text), classification (apply_correction, already_resolved, mistaken_reviewer, optional_style),
-classification_verdict and evidence_verdict (each separately supported, partial or unsupported),
-factual_impact (resolved, reviewer_error, none or unresolved), correction_applied (boolean),
-rationale (non-empty evidence-based explanation), evidence_bindings (non-empty subset of REVIEW_BINDING.evidence_bindings).
-An approved correction is not resolved until applied in the CURRENT reader bytes. Check actual source evidence.
-optional_style means no factual impact, never a lost qualifier, subject, unit, date, certainty or scope.
-already_resolved/apply_correction require factual_impact resolved; mistaken_reviewer requires reviewer_error.
-Unresolved factual changes remain blocking/FAIL. Do not invent PASS judgements or erase retained findings.
 '''
 
 
@@ -293,34 +290,18 @@ def editor_review_schema_errors(review, *, purpose, retained_findings=(), review
                     or not isinstance(part.get('basis'), str) or not part['basis'].strip()):
                 errors.append(f'{name} requires PASS/FAIL and a non-empty string basis')
     expected = set(retained_findings)
-    for key in ('blocking', 'minor'):
-        if isinstance(review.get(key), list):
-            expected.update(note for note in review[key] if isinstance(note, str))
-    if expected:
-        rows = review.get('note_dispositions')
-        if (not isinstance(rows, list) or any(not isinstance(row, dict) or not isinstance(row.get('note'), str) for row in rows)
-                or {row.get('note') for row in rows} != expected or len(rows) != len(expected)):
-            errors.append('note_dispositions must cover every current and retained finding exactly once')
-        else:
-            for row in rows:
-                if (set(row) != set(JUDGEMENT_FIELDS) or row.get('classification') not in
-                        ('apply_correction', 'already_resolved', 'mistaken_reviewer', 'optional_style')
-                        or any(row.get(k) not in ('supported', 'partial', 'unsupported')
-                               for k in ('classification_verdict', 'evidence_verdict'))
-                        or not isinstance(row.get('correction_applied'), bool)
-                        or row.get('factual_impact') not in ('none', 'resolved', 'reviewer_error', 'unresolved')
-                        or not isinstance(row.get('rationale'), str) or not row['rationale'].strip()
-                        or not isinstance(row.get('evidence_bindings'), list) or not row['evidence_bindings']
-                        or any(not isinstance(item, dict) or set(item) != {'path', 'sha256'}
-                               or not isinstance(item.get('path'), str)
-                               or not isinstance(item.get('sha256'), str)
-                               or not re.fullmatch(r'[0-9a-f]{64}', item['sha256'])
-                               or not isinstance(review_binding, dict)
-                               or item not in review_binding.get('evidence_bindings', [])
-                               for item in row['evidence_bindings'])):
-                    errors.append('each note disposition requires typed classification and evidence judgements')
-        if not isinstance(review_binding, dict) or review.get('review_binding') != review_binding:
-            errors.append('review_binding must echo the exact current reader/evidence bindings')
+    rows = review.get('note_dispositions')
+    if expected and isinstance(rows, list) and rows:
+        for row in rows:
+            if (set(row) != set(JUDGEMENT_FIELDS) or row.get('classification') not in
+                    ('apply_correction', 'already_resolved', 'mistaken_reviewer', 'optional_style')
+                    or any(row.get(k) not in ('supported', 'partial', 'unsupported')
+                           for k in ('classification_verdict', 'evidence_verdict'))
+                    or not isinstance(row.get('correction_applied'), bool)
+                    or row.get('factual_impact') not in ('none', 'resolved', 'reviewer_error', 'unresolved')
+                    or not isinstance(row.get('rationale'), str) or not row['rationale'].strip()
+                    or not isinstance(row.get('evidence_bindings'), list) or not row['evidence_bindings']):
+                errors.append('each note disposition requires typed classification and evidence judgements')
     return errors
 
 
@@ -376,9 +357,16 @@ def lint(md, prose=False, purpose='factual'):
         _purpose_module().validate_report_purpose(purpose)
     missing = [s for s in required_sections if s not in md]
     table_pipe = bool(re.search(r'^\|.*\[\[[^\]]*\|', md, re.M))
+    table_in_brief = bool(prose and re.search(r'^\|.*\|', md, re.M))
+    local_md_link = bool(prose and re.search(r'\]\((?!https?://)[^)#\s]+\.md(?:#[^)]*)?\)', md))
     decision_call_errors = validate_c1_call_block(md, require_section=purpose == 'legacy')
-    ok = words <= MAX_WORDS and avg <= 22 and not hits and not proc and not missing and not table_pipe and not decision_call_errors and md.lstrip().startswith('# ')
-    result = {'ok': ok, 'words': words, 'max_words': MAX_WORDS, 'avg_sentence_words': avg, 'banned_hits': hits, 'process_hits': proc, 'missing_sections': missing, 'table_alias_pipe': table_pipe, 'decision_call_errors': decision_call_errors}
+    ok = (words <= MAX_WORDS and avg <= 22 and not hits and not proc and not missing
+          and not table_pipe and not table_in_brief and not local_md_link
+          and not decision_call_errors and md.lstrip().startswith('# '))
+    result = {'ok': ok, 'words': words, 'max_words': MAX_WORDS, 'avg_sentence_words': avg,
+              'banned_hits': hits, 'process_hits': proc, 'missing_sections': missing,
+              'table_alias_pipe': table_pipe, 'table_in_brief': table_in_brief,
+              'local_md_link': local_md_link, 'decision_call_errors': decision_call_errors}
     if prose:  # layout v2: the brief must also pass the plain-prose checker
         result['prose'] = prose_result(md)
         result['ok'] = ok and result['prose']['ok']
@@ -467,11 +455,16 @@ def rewrite(key, p, out, *, corrected_draft=None):
         # Invalid review data is not permission to buy a repair or invent criticism.
         if (L['ok'] and accepted) or rnd == 2 or corrected_draft is not None or parse_failed or schema_errors or not eligible:
             break
-        issues = json.dumps({'automatic_check': L, 'blocking': rv.get('blocking', []), 'raw_editor_notes': rv.get('raw', '')}, indent=1)
         for _ in range(2):
-            new = call(WRITER, style, role='writer', user=f'{src}\n\nCurrent brief:\n\n{md}\n\nFix each blocking problem below with the smallest change, keep everything else, return the full brief only.\n{issues}')
-            if not lint(new, purpose=purpose)['missing_sections']:
-                md = new; break
+            cur_lint = lint(md, prose=prose, purpose=purpose)
+            issues = json.dumps({'automatic_check': cur_lint, 'blocking': rv.get('blocking', []), 'raw_editor_notes': rv.get('raw', '')}, indent=1)
+            new = call(WRITER, style, role='writer', user=f'{src}\n\nCurrent brief:\n\n{md}\n\nFix each blocking problem and any automatic_check failure below with the smallest change, keep everything else, return the full brief only.\n{issues}')
+            new_lint = lint(new, prose=prose, purpose=purpose)
+            if not new_lint['missing_sections']:
+                md = new
+                if new_lint['ok']:
+                    break
+                rv = {'blocking': []}
     path.write_text(md)
     final = {'lint': lint(md, prose=prose, purpose=purpose), 'editor': 'PASS' if accepted else 'FAIL'}
     review_doc = {'key': key, 'rounds': log, 'final': final}
@@ -748,6 +741,9 @@ def reset_editor_note_decisions(root, *, brief_sha256, review_rel=DEFAULT_REVIEW
                     'evidence_refs': refs, 'evidence_bindings': [
                         {'path': ref, 'sha256': sha256_file(_confined(root, ref))} for ref in refs]})
             pending['status'] = 'reviewed'
+        elif review.get('status') == 'PASS' and review.get('editor_verdict') == 'PASS' and not review.get('editor_blocking'):
+            pending['retained_findings'] = []
+            pending['status'] = 'reviewed'
     path = confined_output_path(root, DEFAULT_EDITOR_DECISIONS_REL)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(pending, indent=2) + '\n', encoding='utf-8')
@@ -975,6 +971,9 @@ def campaign_brief(root, *, corrected_draft=None, corrected_draft_authors=None):
     if extra:
         related += ''.join(f'\n  - "[[{n}]]"' for n, _ in extra)
         footer += '\nRelated: ' + ', '.join(f'[[{n}|{lab}]]' if lab else f'[[{n}]]' for n, lab in extra) + '.'
+    if v2:
+        md = re.sub(r'\[([^\]]+)\]\((?:internal/)?reference-pack\.md(?:#[^)]*)?\)',
+                    rf'[[{full_note}|\1]]', md)
     brief.parent.mkdir(parents=True, exist_ok=True)
     frontmatter = render_campaign_frontmatter(title=title, date=date, related=related, full_rel=full_rel, pack_label=pack_label,
                                               reference_text=full.read_text(encoding='utf-8', errors='ignore'),

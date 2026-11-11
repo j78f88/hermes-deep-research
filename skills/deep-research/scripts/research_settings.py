@@ -203,6 +203,67 @@ class Settings:
         return path
 
 
+PHASE_KINDS = {'lanes', 'synthesis', 'review', 'final_review', 'repair'}
+PHASE_FIELDS = {'budget', 'role', 'model_choice', 'toolsets', 'reasoning', 'run_budget_seconds'}
+PHASE_TOOLSETS = {'web', 'terminal', 'file', 'code_execution'}
+PUBLIC_LANE_TOOLSETS = {'web', 'terminal', 'file'}
+REVIEW_NAMES = {'evidence_privacy', 'context_handoff', 'visual', 'final_assurance'}
+PHASE_TOP = {'hermes_bin', 'provider', 'launcher', 'wait_timeout_seconds', 'repair_rounds',
+             'plain_brief_timeout_seconds', 'completion_timeout_seconds', 'reviews', 'phases'}
+
+
+def load_phases(config_dir=None, profile=None, environ=None):
+    """Phase budgets, models and toolsets for the phased run driver."""
+    config = Path(config_dir) if config_dir else Path(__file__).resolve().parent.parent / 'config'
+    data = _read(config / 'phases.yaml')
+    _keys(data, {'schema_version', 'profiles'}, 'phases', {'schema_version', 'profiles'})
+    if data['schema_version'] != 1:
+        raise ValueError('unsupported phases schema')
+    settings = load_settings(config_dir=config_dir, profile=profile, environ=environ)
+    if settings.profile not in data['profiles']:
+        raise ValueError('unknown phases profile')
+    raw = copy.deepcopy(data['profiles'][settings.profile])
+    _keys(raw, PHASE_TOP, 'phases profile', PHASE_TOP)
+    if raw['launcher'] not in ('systemd', 'direct') or not isinstance(raw['hermes_bin'], str) or \
+            not isinstance(raw['provider'], str):
+        raise ValueError('invalid phases launcher/binary/provider')
+    for field in ('wait_timeout_seconds', 'plain_brief_timeout_seconds', 'completion_timeout_seconds'):
+        _number(raw[field], field, 1)
+    _number(raw['repair_rounds'], 'repair_rounds', 0, integer=True)
+    _keys(raw['reviews'], {'pre_brief', 'post_brief', 'final'}, 'reviews', {'pre_brief', 'post_brief', 'final'})
+    named = [n for group in raw['reviews'].values() for n in group]
+    if any(n not in REVIEW_NAMES for n in named) or len(named) != len(set(named)) or 'evidence_privacy' not in raw['reviews'].get('pre_brief', []):
+        raise ValueError('reviews must include evidence_privacy and only valid review names')
+    _keys(raw['phases'], PHASE_KINDS, 'phase kinds', PHASE_KINDS)
+    phases = {}
+    for kind, spec in raw['phases'].items():
+        _keys(spec, PHASE_FIELDS, f'phase {kind}', PHASE_FIELDS)
+        _number(spec['budget'], f'{kind} budget', 1, integer=True)
+        _number(spec['run_budget_seconds'], f'{kind} run_budget_seconds', 1, integer=True)
+        if spec['role'] not in ROLES or spec['model_choice'] not in ('primary', 'fallback'):
+            raise ValueError(f'invalid role/model_choice for phase {kind}')
+        tools = spec['toolsets']
+        if not isinstance(tools, list) or not tools or any(t not in PHASE_TOOLSETS for t in tools):
+            raise ValueError(f'invalid toolsets for phase {kind}')
+        if kind == 'lanes' and not set(tools).issubset(PUBLIC_LANE_TOOLSETS):
+            raise ValueError('public lanes may only get web, terminal and file')
+        route = settings.resolve(spec['role'])
+        if spec['model_choice'] == 'fallback':
+            if not route['fallback_models']:
+                raise ValueError(f'phase {kind} asks for a fallback model the role does not have')
+            model = route['fallback_models'][0]
+        else:
+            model = route['model']
+        reasoning = spec['reasoning']
+        if reasoning not in ('none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'):
+            raise ValueError(f'invalid reasoning for phase {kind}')
+        phases[kind] = {**copy.deepcopy(spec), 'model': model, 'developer': settings.developer(model)}
+    raw['phases'] = phases
+    raw['profile'] = settings.profile
+    raw['roles'] = {role: settings.resolve(role)['model'] for role in sorted(ROLES)}
+    return raw
+
+
 def load_settings(config_dir=None, profile=None, overrides=None, environ=None):
     config = Path(config_dir) if config_dir else Path(__file__).resolve().parent.parent / 'config'
     routing = _read(config / 'model-routing.yaml')

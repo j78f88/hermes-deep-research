@@ -121,3 +121,18 @@ def test_reject_review_is_recorded_and_finish_is_idempotent(tmp_path):
     assert "Fact grades (NATO Admiralty Code):" in text
     fr.run()
     assert fr.path("answer.md").read_text() == text
+
+
+def test_meaning_check_filters_unsupported_and_narrows_partly_supported(tmp_path):
+    from fast_research import narrowed_ok
+
+    quote = "runs on a Linux server with Python 3.11 and 2 GB RAM"
+    assert narrowed_ok("It runs on Linux with Python 3.11.", quote)
+    assert not narrowed_ok("It needs 4 GB RAM.", quote)
+    linux = "It runs on Linux with Python 3.11."
+    fake = FakeHermes({"q1": ["https://example.com/m1"], "q2": ["https://example.com/m2"], "q3": [], "q4": []},
+                      verdicts={linux: ("unsupported", None)})
+    fr = FastResearch(tmp_path, "How does it work?", config=small_config(), **fake.hooks())
+    rec = fr.run()
+    assert rec["status"] == "completed"
+    assert rec["meaning_check"] == {"supported": 2, "unsupported": 2}

@@ -8,7 +8,15 @@ import deepest_research as dr
 import fast_prompts as P
 from fast_research import FastResearch
 from fast_test_support import FakeHermes, small_config
-from test_deepest_research import QUESTIONS, SEARCH, controller
+
+SEARCH = {"q1": ["https://example.invalid/shared"], "q3": ["https://example.invalid/linux"]}
+QUESTIONS = [{"question": "Which exact settings are needed?", "gap": "settings", "impact": 5},
+             {"question": "How are research costs recorded?", "gap": "costs", "impact": 3}]
+
+
+def controller(tmp_path, fake, run_id="deep", **kwargs):
+    return dr.DeepestResearch(tmp_path, "How does deep research work?", run_id=run_id,
+                              config=kwargs.pop("config", small_config()), **fake.hooks(), **kwargs)
 
 REVIEW_QUESTIONS = [
     {"question": "Which release documents the command?", "gap": "release", "impact": 5},

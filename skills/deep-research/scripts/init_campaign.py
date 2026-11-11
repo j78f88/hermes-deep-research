@@ -1038,11 +1038,13 @@ created: {args.date}
 type: source
 stage: import
 source: {args.primary_source or 'N/A'}
-author: Research contributors / Hermes internal synthesis
+author: Research contributors
+credibility: practitioner
 captured_via: agent-deep-research
 tags: [source/adapted]
 related:
   - "[[{export_note_stem(args, 'plain-brief')}]]"
+verified_count: 0
 ---
 
 # {args.target} — reference pack
@@ -1547,19 +1549,14 @@ def main(argv: list[str] | None = None) -> int:
     visual_gate = visual_exhibits(args)
     write(root / "synthesis" / "visual-exhibits.json", json.dumps(visual_gate, indent=2) + "\n")
 
-    # ISSUE-572 research-orchestration artifact placeholders (honestly incomplete).
-    write(root / "orchestration" / "prior-work-context.json", json.dumps(orchestration_prior_work_placeholder(args), indent=2) + "\n")
-    write(root / "orchestration" / "implementation-operating-playbook.json", json.dumps(orchestration_playbook_placeholder(args), indent=2) + "\n")
-    write(root / "orchestration" / "research-improvement-record.json", json.dumps(orchestration_improvement_placeholder(args), indent=2) + "\n")
-
     plain_brief_rel = PLAIN_BRIEF_REL
     auto_dir = Path(args.export_root)
     if v2:
         export_allowlist = [REFERENCE_PACK_REL, plain_brief_rel]
-        export_denylist = ["context/**", "qa/**", "lanes/**", "synthesis/**", "manifest.json", "receipts/**", "raw sources", "transcripts", "machine artifacts"]
+        export_denylist = ["context/**", "qa/**", "lanes/**", "synthesis/**", "workspace/**", "workers/**", "orchestration/**", "history/**", "manifest.json", "campaign_state.json", "citations.json", "receipts/**"]
     else:
         export_allowlist = ["internal/full-research-pack.md", "internal/executive-brief.md", plain_brief_rel]
-        export_denylist = ["external/original-full-research-pack.md", "context/**", "qa/**", "lanes/**", "manifest.json", "receipts/**", "raw sources", "transcripts", "machine artifacts"]
+        export_denylist = ["external/original-full-research-pack.md", "context/**", "qa/**", "lanes/**", "workspace/**", "workers/**", "orchestration/**", "history/**", "manifest.json", "campaign_state.json", "citations.json", "receipts/**"]
     deliverable_exports = {}
     if not args.no_deliverable_export and v2:
         deliverable_exports = {
@@ -1669,34 +1666,6 @@ def main(argv: list[str] | None = None) -> int:
             "path": "synthesis/visual-exhibits.json",
         },
         "pre_seed": pre_seed,
-        "research_orchestration": {
-            "schema_version": "stage572-research-orchestration-v1",
-            "prior_work_context": {
-                "path": "orchestration/prior-work-context.json",
-                "schema": "prior-work-context-v1",
-                "required": True,
-                "status": "not_started",
-            },
-            "playbook": {
-                "path": "orchestration/implementation-operating-playbook.json",
-                "schema": "implementation-or-operating-playbook-v1",
-                "required": True,
-                "status": "not_started",
-                "material_stage_citation_rule": "every material stage must cite >=1 CLM claim id and >=1 PW prior-work id",
-            },
-            "improvement_record": {
-                "path": "orchestration/research-improvement-record.json",
-                "schema": "research-improvement-record-v1",
-                "required": False,
-                "status": "not_started",
-                "note": "not_yet_measurable until observed outcome evidence exists after an approved implementation/pilot",
-            },
-            "evaluator": "scripts/prior_work_playbook_loop.py",
-            "relevant_history_adapter": "scripts/relevant_history_adapter.py",
-            "output_review_adapters": "scripts/output_review_adapters.py",
-            "activation": "proposal_only",
-            "automatic_mutation_allowed": False,
-        },
         "lanes": lanes,
         "files": files,
     }
